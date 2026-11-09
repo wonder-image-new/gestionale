@@ -2,15 +2,23 @@
     "name": "Gestionale",
     "contacts": {
         "relations": {
-            "title": "Referenti e aziende",
-            "tooltip": "Le persone che lavorano per questa azienda, o le aziende per cui lavora questa persona. Un referente che riceve i documenti li ha in copia quando li mandi.",
+            "title_people": "Referenti",
+            "title_companies": "Aziende",
+            "tooltip_people": "Le persone che lavorano per questa azienda, con il loro reparto (es. Amministrazione): servirà per mandare a ognuno le email che lo riguardano. Un referente che riceve i documenti li ha in copia quando li mandi.",
+            "tooltip_companies": "Le aziende per cui lavora questa persona, con il suo ruolo e reparto. Se riceve i documenti li ha in copia quando li mandi.",
             "filter": "Referenti",
             "filter_only": "Solo i referenti",
             "filter_hide": "Senza i referenti",
             "column": "Referenti / aziende",
             "referent_badge": "Referente",
             "export_people": "Referenti",
-            "export_companies": "Aziende"
+            "export_companies": "Aziende",
+            "quick_person": "Nuovo referente",
+            "quick_company": "Nuova azienda"
+        },
+        "brands": {
+            "title": "Brand",
+            "tooltip": "Il nome commerciale con cui il cliente si presenta. Un brand può stare su più ragioni sociali e una ragione sociale può avere più brand: i preventivi si legano al brand."
         }
     },
     "errors": {
@@ -286,6 +294,10 @@
             "user_required": "Scegli l'utente del commerciale: senza utente non entra nel pannello.",
             "user_not_agent": "L'utente scelto non ha il ruolo «Commerciale»: daglielo da Utenti, poi riprova.",
             "user_taken": "Questo utente è già un commerciale: modifica quella scheda.",
+            "user_fields": "Scrivi almeno nome ed email del commerciale.",
+            "user_email": "L'email del commerciale non è valida.",
+            "user_other_role": "C'è già un utente con questa email ma con un altro ruolo: cambialo da Utenti oppure usa un'altra email.",
+            "user_not_created": "Non sono riuscito a creare l'utente del commerciale: controlla che email e username non siano già usati.",
             "invalid_percent": "{{field}} va da 0 a 100."
         },
         "payment_term": {

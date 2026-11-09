@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 
 use Wonder\App\ResourceSchema\ApiSchema;
+use Wonder\Backend\Support\QuickCreateStore;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\Input;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -40,6 +41,7 @@ use Wonder\Plugin\Gestionale\Support\Contacts\ContactExports;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerSheet;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerStats;
+use Wonder\Plugin\Gestionale\Support\Contacts\QuickContacts;
 use Wonder\Plugin\Gestionale\Support\Contacts\VisitorCountry;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
@@ -60,7 +62,7 @@ use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
  * Non è `final`: la estende `CompanyResource`, e i test con una classe
  * anonima.
  */
-class CustomerResource extends GestionaleResource
+class CustomerResource extends GestionaleResource implements QuickCreateStore
 {
     use HasContactRelations;
 
@@ -361,6 +363,7 @@ class CustomerResource extends GestionaleResource
         $chiE[] = static::getInput('active')->columnSpan(3);
 
         $cards = [
+            ...static::brandCards(),
             (new Card)->components($chiE)->columns(12)->columnSpan(12),
             (new Card)->components([
                 SectionTitle::make('Contatti')->columnSpan(12),
@@ -407,6 +410,12 @@ class CustomerResource extends GestionaleResource
         ])->columns(12);
     }
 
+    /** La card «Brand», prima di tutto: solo le aziende ne hanno. */
+    protected static function brandCards(): array
+    {
+        return [];
+    }
+
     /**
      * La card «Referenti» (azienda) o «Aziende» (persona): i due repeater
      * seguono il tipo della scheda, il campo nascosto dice al salvataggio che
@@ -420,15 +429,52 @@ class CustomerResource extends GestionaleResource
             return [];
         }
 
+        $company = static::relationSide() === ContactRelations::COMPANY;
+
         return [
             (new Card)->components([
-                SectionTitle::make(__t('gestionale.contacts.relations.title'))
-                    ->tooltip(__t('gestionale.contacts.relations.tooltip'))
+                SectionTitle::make(__t('gestionale.contacts.relations.'.($company ? 'title_people' : 'title_companies')))
+                    ->tooltip(__t('gestionale.contacts.relations.'.($company ? 'tooltip_people' : 'tooltip_companies')))
                     ->columnSpan(12),
                 // Il form dichiara un solo repeater, quello del lato della scheda
-                static::getInput(static::relationSide() === ContactRelations::COMPANY ? self::RELATION_PEOPLE : self::RELATION_COMPANIES)->columnSpan(12),
+                static::getInput($company ? self::RELATION_PEOPLE : self::RELATION_COMPANIES)->columnSpan(12),
                 static::getInput(self::RELATION_MARKER)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
+        ];
+    }
+
+    /**
+     * Il «+» nelle righe dei legami, lo stesso input dei brand: dalla scheda
+     * di un'azienda si crea un referente, da quella di una persona
+     * un'azienda. La crea `quickCreateStore()` del target.
+     */
+    protected static function relationQuickCreate(string $parentColumn): ?array
+    {
+        return $parentColumn === ContactRelations::COMPANY
+            ? [CustomerResource::class, ['name', 'surname', 'email'], null, (string) __t('gestionale.contacts.relations.quick_person')]
+            : [CompanyResource::class, ['business_name', 'pi'], null, (string) __t('gestionale.contacts.relations.quick_company')];
+    }
+
+    /**
+     * La creazione rapida (QuickCreateStore): passa da `QuickContacts`, che
+     * cerca prima il doppione per email o partita IVA e salva come l'utente
+     * della sessione (la scheda di un commerciale nasce sua).
+     */
+    public static function quickCreateStore(array $values, string $labelField): array
+    {
+        $result = static::relationSide() === ContactRelations::COMPANY
+            ? QuickContacts::company($values)
+            : QuickContacts::person($values);
+
+        if (!$result['ok']) {
+            return ['error' => $result['message']];
+        }
+
+        return [
+            'id' => $result['id'],
+            'label' => $result['label'],
+            'item' => ['id' => $result['id'], 'name' => $result['label']],
+            'message' => $result['existing'] ? $result['message'] : '',
         ];
     }
 
@@ -737,11 +783,72 @@ class CustomerResource extends GestionaleResource
             static::deliveryCard($id),
         ];
 
+        if (($legami = static::relationsCard($id)) !== null) {
+            array_splice($destra, 1, 0, [$legami]);
+        }
+
         return (new Container)->components([
             (new Container)->columnSpan(['default' => 12, 'lg' => 8])->columns(12)->components($sinistra),
             (new Container)->columnSpan(['default' => 12, 'lg' => 4])->columns(12)->components($destra),
             $accordion('Coupon assegnati', CustomerSheet::couponsTable(CustomerSheet::coupons($id, $column))),
         ])->columns(12);
+    }
+
+    /**
+     * I legami della scheda, con i referenti accesi: per un'azienda le sue
+     * persone, per una persona le sue aziende. Ognuno porta alla sua scheda.
+     */
+    protected static function relationsCard(int $id): ?Card
+    {
+        if ($id <= 0 || !ContactRelations::enabled()) {
+            return null;
+        }
+
+        $azienda = static::isCompanySide();
+        $items = [];
+
+        foreach ($azienda ? ContactRelations::peopleOf($id) : ContactRelations::companiesOf($id) as $row) {
+            $altro = $row[$azienda ? 'contact' : 'company'] ?? null;
+
+            if (($row['deleted'] ?? 'false') === 'true' || !is_array($altro) || ($altro['deleted'] ?? 'false') === 'true') {
+                continue;
+            }
+
+            $altroId = (int) $altro['id'];
+            $dettaglio = array_filter([
+                trim((string) ($row['job_title'] ?? '')),
+                ($row['is_primary'] ?? 'false') === 'true' ? 'Principale' : '',
+                ($row['receives_documents'] ?? 'false') === 'true' ? 'Riceve i documenti' : '',
+                $azienda ? trim((string) ($altro['email'] ?? '')) : '',
+            ]);
+
+            $items[] = [
+                'name' => $azienda
+                    ? Contacts::displayName($altro)
+                    : (trim((string) ($altro['business_name'] ?? '')) ?: 'Azienda #'.$altroId),
+                'url' => $azienda ? CustomerResource::viewUrl($altroId) : static::companyUrl($altro),
+                'detail' => implode(' · ', $dettaglio),
+            ];
+        }
+
+        return (new Card)->components([
+            SectionTitle::make($azienda ? 'Referenti' : 'Aziende')
+                ->tooltip($azienda ? 'Le persone legate all\'azienda: si aggiungono dalla modifica.' : 'Le aziende di cui la persona è referente: si aggiungono dalla modifica.')
+                ->columnSpan(12),
+            RichText::make(CustomerSheet::relations($items, $azienda ? 'Nessun referente.' : 'Non è referente di nessuna azienda.'))->tag('div')->columnSpan(12),
+        ])->columns(12)->columnSpan(12);
+    }
+
+    /** La scheda di un'azienda: da cliente, da fornitore o nessuna. */
+    private static function companyUrl(array $company): string
+    {
+        $id = (int) ($company['id'] ?? 0);
+
+        if (($company['is_customer'] ?? 'false') === 'true') {
+            return CompanyResource::viewUrl($id);
+        }
+
+        return ($company['is_supplier'] ?? 'false') === 'true' ? SupplierResource::viewUrl($id) : '';
     }
 
     /**

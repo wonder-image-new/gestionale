@@ -120,7 +120,7 @@ try {
         set('referent', parseInt(data.company_id, 10) > 0 ? (data.customer_id || 0) : 0);
     }
 
-    // I referenti dell'azienda scelta: «Nessun referente», poi chi riceve i documenti.
+    // I referenti dell'azienda scelta: «Nessun referente», poi le persone dell'azienda.
     function referents(list) {
         var node = field('referent');
         var primary = 0;
@@ -138,6 +138,23 @@ try {
             }
         });
         node.value = String(primary);
+        node.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+
+    // I brand dell'azienda scelta: «Nessun brand», poi i suoi; proposto il primo.
+    function brands(list) {
+        var node = field('brand_id');
+
+        if (!node) {
+            return;
+        }
+
+        node.innerHTML = '';
+        node.appendChild(new Option('Nessun brand', '0'));
+        (list || []).forEach(function (b) {
+            node.appendChild(new Option(b.label, String(b.id)));
+        });
+        node.value = list && list.length ? String(list[0].id) : '0';
         node.dispatchEvent(new Event('change', {bubbles: true}));
     }
 
@@ -249,6 +266,7 @@ try {
             var main;
 
             referents(data.referents);
+            brands(data.brands);
             fill(data.customer || {});
             panels(data);
             main = state.addresses.filter(function (a) { return a.is_default; })[0]
@@ -264,6 +282,7 @@ try {
             set('customer_id', '');
             set('company_id', '0');
             referents([]);
+            brands([]);
             panels(null);
         }
     });
@@ -314,6 +333,13 @@ try {
         }
 
         if (modal.id === modals[2]) {
+            // Le sedi d'azienda non hanno la ragione sociale: è quella dell'azienda.
+            target = modal.querySelector('[name="business_name"]');
+
+            if (target) {
+                (target.closest('[class*="col-"]') || target.parentNode).hidden = company();
+            }
+
             return;
         }
 
@@ -427,6 +453,7 @@ try {
         body = new FormData();
         body.append('action', 'delete');
         body.append('contact_id', state.contact.id);
+        body.append('company_id', company() ? state.contact.company_id : 0);
         body.append('address_id', button.getAttribute('data-wi-oo-address-delete'));
         post(body, function (data) {
             saved('delete', data);
