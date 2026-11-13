@@ -2,11 +2,8 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
-use InvalidArgumentException;
 use Wonder\App\Media\MediaInputs;
-use Wonder\App\Media\MediaTypes;
-use Wonder\App\ResourceSchema\FormField;
-use Wonder\App\ResourceSchema\Inputs\InputMedia;
+use Wonder\App\ResourceSchema\Inputs\InputFileDragDrop;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSelection;
@@ -26,28 +23,24 @@ final class CatalogMedia
     public const MODELS = [Category::class, Tag::class, Brand::class, ProductSelection::class];
 
     /**
-     * Il campo media di un form: `FormField::media()` del core sulla colonna
-     * con l'id, con i modelli di slug e testo alternativo del Model.
+     * Il campo media di un form: il drag & drop del core collegato alla
+     * libreria ({@see InputFileDragDrop::mediaLibrary()}) sulla colonna con
+     * l'id, con i tipi, lo slug e il testo alternativo del Model. Il file
+     * caricato diventa un media e il ridimensionatore lo prepara.
+     *
+     * `$type` sceglie la colonna quando il campo ne ha più d'una; senza,
+     * quella del primo tipo.
      *
      * @param class-string $model uno di {@see MODELS}
      */
-    public static function input(string $model, string $field, string $type = MediaTypes::IMAGE): InputMedia
+    public static function input(string $model, string $field, ?string $type = null): InputFileDragDrop
     {
-        $config = $model::mediaFields()[$field] ?? null;
-        $column = $config['columns'][$type] ?? null;
-
-        if ($column === null) {
-            throw new InvalidArgumentException("Il campo {$field} di {$model} non ha media di tipo {$type}.");
-        }
-
-        $input = FormField::key($column)->media($type)->mediaSlug($config['slug']);
-
-        return $config['alt'] !== '' ? $input->mediaAlt($config['alt']) : $input;
+        return $model::mediaInput($field, $type);
     }
 
     /**
-     * I nomi che un campo media manda nella richiesta: la colonna con l'id
-     * e il file caricato. Servono dove la richiesta viene filtrata per nome
+     * I nomi che un campo media manda nella richiesta: la colonna e i campi
+     * di servizio del drag & drop (file, scelte dalla libreria, mappa). Servono dove la richiesta viene filtrata per nome
      * (le schede in sola lettura con qualche campo modificabile).
      *
      * @param class-string $model
@@ -57,11 +50,14 @@ final class CatalogMedia
     {
         $keys = [];
 
-        foreach ($model::mediaFields() as $config) {
-            foreach ($config['columns'] as $column) {
-                $keys[] = $column;
-                $keys[] = $column.MediaInputs::UPLOAD_SUFFIX;
-            }
+        foreach (self::columns($model) as $column) {
+            array_push(
+                $keys,
+                $column,
+                MediaInputs::fieldName($column, MediaInputs::FILES_SUFFIX),
+                MediaInputs::fieldName($column, MediaInputs::PICKS_SUFFIX),
+                MediaInputs::fieldName($column, MediaInputs::MAP_SUFFIX),
+            );
         }
 
         return $keys;
@@ -75,12 +71,6 @@ final class CatalogMedia
      */
     public static function columns(string $model): array
     {
-        $columns = [];
-
-        foreach ($model::mediaFields() as $config) {
-            array_push($columns, ...array_values($config['columns']));
-        }
-
-        return $columns;
+        return $model::mediaColumns();
     }
 }

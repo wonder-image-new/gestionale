@@ -12,7 +12,7 @@ use Wonder\App\Media\MediaTypes;
 use Wonder\App\Media\MediaUsages;
 use Wonder\App\Media\MemoryMediaStore;
 use Wonder\App\Media\MemoryMediaUsageStore;
-use Wonder\App\ResourceSchema\Inputs\InputMedia;
+use Wonder\App\ResourceSchema\Inputs\InputFileDragDrop;
 use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductSelection;
@@ -57,15 +57,15 @@ $form = static function (string $resource): array {
 };
 
 $attesi = [
-    Category::class => [CategoryResource::class, ['image_id' => [MediaTypes::IMAGE, 'categoria-{slug}', '{name}']]],
-    Tag::class => [TagResource::class, ['image_id' => [MediaTypes::IMAGE, 'tag-{slug}', '{name}']]],
+    Category::class => [CategoryResource::class, ['image_id' => [[MediaTypes::IMAGE], 'categoria-{slug}', '{name}']]],
+    Tag::class => [TagResource::class, ['image_id' => [[MediaTypes::IMAGE], 'tag-{slug}', '{name}']]],
+    // Un campo solo: il logo è un'immagine o un svg.
     Brand::class => [BrandResource::class, [
-        'logo_id' => [MediaTypes::IMAGE, 'logo-{slug}', 'Logo {name}'],
-        'logo_svg_id' => [MediaTypes::ICON, 'logo-{slug}', 'Logo {name}'],
+        'logo_id' => [[MediaTypes::IMAGE, MediaTypes::ICON], 'logo-{slug}', 'Logo {name}'],
     ]],
     ProductSelection::class => [ProductSelectionResource::class, [
-        'image_id' => [MediaTypes::IMAGE, 'selezione-{slug}', '{title}'],
-        'background_id' => [MediaTypes::IMAGE, 'selezione-{slug}-sfondo', ''],
+        'image_id' => [[MediaTypes::IMAGE], 'selezione-{slug}', '{title}'],
+        'background_id' => [[MediaTypes::IMAGE], 'selezione-{slug}-sfondo', ''],
     ]],
 ];
 
@@ -97,11 +97,12 @@ foreach ($attesi as $model => [$resource, $campi]) {
         return $dichiarate === $attese;
     });
 
-    check("{$nome}: il form ha il campo media del core, con slug e testo alternativo presi dalla riga", function () use ($resource, $campi, $form) {
-        foreach ($campi as $colonna => [$tipo, $slug, $alt]) {
+    check("{$nome}: il form ha il drag & drop collegato alla libreria, con slug e testo alternativo presi dalla riga", function () use ($resource, $campi, $form) {
+        foreach ($campi as $colonna => [$tipi, $slug, $alt]) {
             $campo = $form($resource)[$colonna] ?? null;
 
-            if (!$campo instanceof InputMedia || $campo->mediaConfig() !== ['type' => $tipo, 'slug' => $slug, 'alt' => $alt]) {
+            if (!$campo instanceof InputFileDragDrop
+                || array_intersect_key($campo->mediaConfig(), ['types' => 1, 'library' => 1, 'slug' => 1, 'alt' => 1]) !== ['types' => $tipi, 'library' => true, 'slug' => $slug, 'alt' => $alt]) {
                 return false;
             }
         }
@@ -158,8 +159,9 @@ check('i modelli si riempiono con i valori della riga: slug e testo alternativo 
         $valori = $inputs->resolve([
             'name' => 'Scarpe',
             'slug' => 'scarpe',
-            'image_id' => '',
-            'image_id__wi_media_upload' => ['name' => ['IMG_0012.JPG'], 'type' => ['image/jpeg'], 'tmp_name' => [$file], 'error' => [UPLOAD_ERR_OK], 'size' => [10]],
+            'image_id' => ['name' => 'IMG_0012.JPG', 'type' => 'image/jpeg', 'tmp_name' => $file, 'error' => UPLOAD_ERR_OK, 'size' => 10],
+            'image_id__wi_files' => '[0]',
+            'image_id__wi_picks' => '[null]',
         ]);
         @unlink($file);
         $id = (int) $valori['image_id'];
@@ -199,11 +201,13 @@ check('una riga con il suo media si legge dalla libreria, per id', function () {
         && Category::media(['image_id' => '999'], 'image') === null;
 });
 
-check('il logo di un marchio: il vettoriale se c\'è, altrimenti il raster', fn () =>
-    Brand::mediaId(['logo_id' => '11', 'logo_svg_id' => '12'], 'logo') === 12
-    && Brand::media(['logo_id' => '11', 'logo_svg_id' => '12'], 'logo')?->type === MediaTypes::ICON
-    && Brand::media(['logo_id' => '11', 'logo_svg_id' => null], 'logo')?->fileName() === 'logo-acme.png'
+check('il logo di un marchio sta in logo_id, raster o svg', fn () =>
+    Brand::media(['logo_id' => '12'], 'logo')?->type === MediaTypes::ICON
+    && Brand::media(['logo_id' => '11'], 'logo')?->fileName() === 'logo-acme.png'
+    // La colonna vecchia non si legge più: la migrazione l'ha portata in logo_id.
+    && Brand::mediaId(['logo_id' => '11', 'logo_svg_id' => '12'], 'logo') === 11
     && Brand::mediaId(['logo_id' => 0, 'logo_svg_id' => ''], 'logo') === 0
+    && CatalogMedia::columns(Brand::class) === ['logo_id']
 );
 
 check('un elenco si legge con una lettura sola', function () use ($libreria) {
@@ -247,10 +251,12 @@ check('la selezione ha immagine e sfondo, ognuno il suo media', fn () =>
     && ProductSelection::mediaId(['image_id' => null, 'background_id' => '13'], 'image') === 0
 );
 
-check('i nomi che un campo media manda nella richiesta: l\'id e il file caricato', fn () =>
+check('i nomi che un campo media manda nella richiesta: la colonna e i campi di servizio', fn () =>
     CatalogMedia::requestKeys(ProductSelection::class) === [
-        'image_id', 'image_id__wi_media_upload', 'background_id', 'background_id__wi_media_upload',
+        'image_id', 'image_id__wi_files', 'image_id__wi_picks', 'image_id__wi_media',
+        'background_id', 'background_id__wi_files', 'background_id__wi_picks', 'background_id__wi_media',
     ]
+    && CatalogMedia::requestKeys(Brand::class) === ['logo_id', 'logo_id__wi_files', 'logo_id__wi_picks', 'logo_id__wi_media']
 );
 
 MediaLibrary::useStore(null);

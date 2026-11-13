@@ -323,6 +323,20 @@ versionamento semantico.
   (`RowVisibility` vieta `deleted` nelle regole; serve un aiuto del core).
 
 ### Cambiato
+- Campi media del catalogo: `HasCatalogMedia`, `CatalogMediaPlan` e
+  `CatalogMediaMigration` delegano al core (`HasMedia`, `LegacyMediaPlan`,
+  `LegacyMediaMigration`), che ora usa lo stesso meccanismo per i loghi del
+  sito. Nessun cambiamento per chi li usa.
+- Catalogo: immagini di categorie, tag e selezioni e logo dei marchi si
+  caricano con il drag & drop del core collegato alla libreria Media
+  (`fileDragDrop()->mediaLibrary()`); il file finisce sempre nella libreria e
+  le misure le prepara lo scheduler. `CatalogMedia::input()` restituisce un
+  `InputFileDragDrop` e `requestKeys()` nomina i campi `__wi_files`,
+  `__wi_picks`, `__wi_media` al posto di quelli del campo media.
+- Marchi: un solo campo **Logo** (`logo_id`) per immagine o svg.
+  `BrandLogoSvgMigration` sposta il logo vettoriale in `logo_id` con il suo
+  utilizzo; la colonna `logo_svg_id` resta, deprecata e vuota.
+  `HasCatalogMedia` ammette più tipi sulla stessa colonna.
 - Anagrafiche: la finestra «Aggiungi indirizzo» della scheda di una persona
   non chiede più «Presso»; un valore già salvato resta
   (`ContactAddressResource::FIELDS`).
