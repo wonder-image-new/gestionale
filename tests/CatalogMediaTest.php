@@ -101,7 +101,7 @@ foreach ($attesi as $model => [$resource, $campi]) {
         foreach ($campi as $colonna => [$tipo, $slug, $alt]) {
             $campo = $form($resource)[$colonna] ?? null;
 
-            if (!$campo instanceof InputMedia || $campo->mediaConfig() !== ['type' => $tipo, 'slug' => $slug, 'alt' => $alt]) {
+            if (!$campo instanceof InputMedia || array_intersect_key($campo->mediaConfig(), ['type' => 1, 'slug' => 1, 'alt' => 1]) !== ['type' => $tipo, 'slug' => $slug, 'alt' => $alt]) {
                 return false;
             }
         }

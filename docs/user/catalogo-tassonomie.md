@@ -43,7 +43,9 @@ Categorie e tag hanno un'**immagine**, i marchi un **logo**. Li trovi nella
 scheda, nel riquadro a sinistra, con tre bottoni:
 
 - **Scegli dalla libreria:** apre le immagini già caricate in **Media**, con
-  la ricerca. La stessa immagine può servire a più voci.
+  la ricerca. All'inizio vedi solo quelle caricate da questa sezione o già
+  usate qui (per esempio dalle categorie); spegni l'interruttore **Solo i
+  file di…** per vederle tutte. La stessa immagine può servire a più voci.
 - **Carica un file:** carica un'immagine nuova, che finisce anche nella
   libreria. Prende da sola un nome che dice di cosa è («categoria-scarpe») e,
   come descrizione, il nome della voce.
@@ -62,6 +64,9 @@ Tre cose da sapere:
   loro.
 - **Un'immagine in uso non si può eliminare** da **Media**: la scheda
   dell'immagine dice dove è usata. Toglila prima dalle voci che la usano.
+  Negli elenchi di **Media** (immagini, icone, documenti, video) la colonna
+  **In uso in** mostra un'etichetta per ogni sezione che usa il file, e il
+  filtro **Sezione** fa vedere solo i file usati nelle sezioni che spunti.
 - La descrizione dell'immagine (il testo per chi non la vede) segue il nome
   della voce finché non la riscrivi a mano in **Media**: da quel momento
   resta come l'hai scritta.
