@@ -39,9 +39,17 @@ l'elenco, con quanti ne hai scelti e tre pulsanti: **Conferma**, **Segna
 evaso** e **Annulla**. Ogni ordine segue le regole dei pulsanti della sua
 scheda: un ordine già annullato non si conferma, una bozza da ufficio si
 conferma solo dalla sua pagina. Gli ordini che non si possono toccare restano
-come sono e il messaggio finale dice quanti e perché. Cambiare pagina, cercare
+come sono e il messaggio finale dice quanti e perché, una riga per motivo:
+per esempio «Righe aggiornate: 4.» e sotto «Azione non disponibile per 1 riga
+per lo stato dell'ordine.». Cambiare pagina, cercare
 o filtrare toglie la scelta. Servono i permessi per agire sugli ordini, gli
 stessi dei pulsanti della scheda.
+
+Per un solo ordine c'è anche il menu dei tre puntini a destra della riga: sotto
+le voci di sempre trovi **Conferma**, **Segna evaso** e **Annulla**, ma solo
+quelle che valgono per lo stato di quell'ordine. Un ordine in attesa mostra
+*Conferma* e *Annulla*, uno confermato da spedire a mano *Segna evaso* e
+*Annulla*, uno annullato nessuna. Prima di procedere chiede conferma.
 
 ## Nella home
 
@@ -60,6 +68,9 @@ una card si apre l'elenco già filtrato (filtro **Situazione**, o **Periodo**
 su *Questo mese*) con gli stessi ordini del numero. Gli ordini del mese
 comprendono anche quelli annullati dopo; le bozze da ufficio e i pagamenti
 non riusciti non contano mai.
+
+Sotto vengono le spedizioni da controllare e in ritardo (solo quando ce ne
+sono), i **Clienti** e, se usi i preventivi, i **Preventivi**.
 
 ## La scheda
 
@@ -175,3 +186,17 @@ vale più, o un metodo che non arriva al nuovo indirizzo, sparisce con un avviso
 All'invio l'ordine si ferma se il ritiro è in una sede che non è (più) di ritiro o
 se la spedizione non ha un metodo che arrivi all'indirizzo. Gli ordini di soli
 servizi e quelli con le spedizioni spente non chiedono il metodo.
+
+## Le email degli ordini
+
+Le email al cliente e al negozio hanno la stessa grafica delle altre email del
+sito: titolo, elenco degli articoli in colonna (quantità, prezzo, prezzo di
+listino barrato se scontato, totale riga), il riepilogo dei totali (prodotti,
+sconto, spedizione, costi e IVA quando ci sono, poi il totale in evidenza) e un
+pulsante per aprire l'ordine. Il cliente vede anche le istruzioni di pagamento
+e, per il bonifico, i dati del conto in un riquadro; il negozio vede gli SKU.
+
+Nell'email al cliente accanto a ogni articolo c'è una piccola foto del
+prodotto, in una versione leggera che non appesantisce l'email. Le foto ci sono
+solo se **tutti** i prodotti dell'ordine ne hanno una: se ne manca anche una
+sola, l'elenco resta senza foto. Le email al negozio non hanno mai foto.

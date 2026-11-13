@@ -5,6 +5,22 @@ versionamento semantico.
 
 ## 0.1.0 — non rilasciata
 
+### Cambiato
+- Email: ordini, abbonamenti, prodotti sotto scorta e avviso dei pagamenti si
+  compongono con `MailMessage` del core, con la grafica delle email del sito
+  (pulsanti, riepiloghi, tabella degli articoli). Con un core senza
+  `MailMessage`, o con la vista copiata dal sito in
+  `custom/modules/gestionale/view/emails/`, il corpo resta quello delle viste.
+  `Mailer::prepare()` manda intatto il corpo composto e difende con `shield()`
+  quello scritto a mano.
+- Email degli ordini: articoli in colonna con `MailMessage::items()` (quantità,
+  prezzo, listino barrato, totale riga) e totali scomposti (prodotti, sconto,
+  spedizione, costi, IVA, totale). Al cliente, e solo se tutti i prodotti ne
+  hanno una, la foto nella misura più leggera generata (di solito 240px, nel
+  formato dell'originale); le righe senza la foto copiata ripiegano su quella
+  del prodotto. Email sotto scorta in tabella con `MailMessage::table()`.
+  Serve un core con `items()`: con uno più vecchio si torna alle viste.
+
 ### Corretto
 - Anagrafiche: la riga «nuova persona» dei referenti non crea più un doppione
   quando l'email è già di una persona: il form avvisa mentre scrivi e al
@@ -34,11 +50,29 @@ versionamento semantico.
   ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
 
 ### Aggiunto
+- Ordini: *Conferma*, *Segna evaso* e *Annulla* anche nel menu dei tre puntini
+  della riga, solo quando valgono per lo stato dell'ordine
+  (`BulkAction::row()` con `OrderActions::available()`).
+- Promozioni: caselle e barra delle azioni di massa su coupon e campagne di
+  sconto, con *Attiva*, *Disattiva* ed *Elimina*
+  (`ListBulkActions::promotions()`).
+- Azioni di massa: il messaggio finale dice per quante righe vale ogni errore
+  («Azione non disponibile per 1 riga per lo stato dell'ordine.»), una riga
+  per motivo. Serve il core con `{{rows}}`.
 - Home del backend: il riquadro «Ordini» con gli ordini del mese (e di oggi)
   e tre code, in attesa di conferma, da evadere e da pagare; ogni card apre
   l'elenco Ordini già filtrato. Nuovo filtro «Situazione» nell'elenco
   (`Support\Orders\OrderQueues`, `OrderResource::filteredUrl()`,
   `Backend\Widgets\OrdersWidget`).
+- Home del backend: sotto «Ordini» vengono le spedizioni da controllare e in
+  ritardo (prima stavano dopo «Sotto scorta»), poi due riquadri nuovi.
+  «Clienti»: quanti clienti privati e, con le aziende attive, quante aziende
+  clienti, con i nuovi del mese (`Support\Contacts\CustomerCounts`,
+  `Backend\Widgets\CustomersWidget`). «Preventivi», con la funzionalità
+  Preventivi: le bozze da inviare e gli inviati in attesa, con quelli che
+  scadono entro 7 giorni (`Support\Sales\QuoteCounts`,
+  `Backend\Widgets\QuotesWidget`). Ogni card apre l'elenco filtrato.
+  `CustomerResource::listUrl()` e `WidgetCard::halfRow()`.
 - Azioni di massa nelle liste: in *Catalogo → Prodotti* si pubblicano o si
   mettono in bozza più articoli insieme; in *Vendite → Ordini* si confermano,
   si segnano evasi o si annullano più ordini, ognuno con i controlli dei

@@ -723,6 +723,16 @@ wonder-image/app):
   e poi da `OrderActionResource::run()`, con la sua transazione: l'azione ha
   `transaction(false)`. Il permesso è `update` di `OrderActionResource`,
   perché quello di `OrderResource` non limita `update`.
+  Le tre azioni hanno anche `->row(fn ($row) => …)`: compaiono nel menu dei
+  tre puntini della riga solo se `OrderActions::available($row, $features)`
+  le contiene (la riga di SSP ha `status`, `channel`, `fulfillment_*`). Su un
+  core senza `row()` restano solo nella barra (`method_exists`).
+- `promotions()`: *Attiva* / *Disattiva* (`BulkAction::toggle()` su `active`)
+  ed *Elimina* (`BulkAction::delete()`), su `CouponResource` e
+  `DiscountCampaignResource`. Niente voci di riga: il menu ha già i suoi
+  bottoni.
+- I messaggi di errore usano `{{rows}}` («Azione non disponibile per 1 riga
+  per lo stato dell'ordine.»): il core lo sostituisce con il numero di righe.
 - `apply()` non fa niente su un core senza azioni di massa.
 
 Test: `tests/ListBulkActionsTest.php`.
@@ -748,6 +758,32 @@ su `ordered_at`, come il filtro **Periodo**.
 Lo vede chi vede le vendite, senza i commerciali (`SalesAgents::withoutAgents`,
 come `AttentionWidget`); con `orders` spenta non disegna niente. `markup()` è
 puro: `tests/OrderQueuesTest.php` lo prova senza database.
+
+## Sotto «Ordini»: spedizioni, clienti, preventivi
+
+L'ordine dei riquadri subito dopo `OrdersWidget` (15) è fisso, in
+`backend.home_widgets` come in `order()`:
+
+- 16 e 17, `ShipmentsToCheckWidget` e `ShippedNotDeliveredWidget` (vedi
+  [spedizioni](spedizioni.md)): mezza riga ciascuno, spariscono a zero;
+- 18, `CustomersWidget`: una `StatusCard` *Clienti* se `CustomerMode::people()`
+  e una *Aziende clienti* se `CustomerMode::companies()`. Conta
+  `is_customer = 'true'` non eliminati e i creati questo mese
+  (`MovementPeriod` su `creation`), in una query per tabella
+  (`Support\Contacts\CustomerCounts`). Le card aprono gli elenchi col filtro
+  ruolo quando c'è (`contacts__role=customers`, `companies__role=customer`).
+  Gli stessi totali li ripete il riquadro *Anagrafiche* in fondo;
+- 19, `QuotesWidget`, solo con `quotes` (che chiede `office_sales`):
+  *Preventivi da inviare* (`status = 'draft'`) e *Preventivi in attesa*
+  (`sent`), con quelli che scadono entro `QuoteCounts::EXPIRING_DAYS` = 7
+  giorni nel dettaglio. Righe di `QuoteCounts::BASE`, le stesse dell'elenco;
+  le card usano il filtro *Stato* (`gst_orders__status`).
+
+Clienti e preventivi escono con `WidgetCard::halfRow()`: due card in mezza riga
+da `xl` in su, così i due riquadri fanno una riga da quattro come «Ordini».
+Niente commerciali (`SalesAgents::withoutAgents`). Con una query che fallisce
+il riquadro sparisce e l'errore va nel log (`widget.customers`,
+`widget.quotes`). Test: `tests/HomeSummaryTest.php`.
 
 ## Errori che il commerciante legge
 
