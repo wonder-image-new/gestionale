@@ -64,28 +64,37 @@ deve cambiare sotto i piedi di chi ha messo un link.
 
 L'immagine di categorie, tag e selezioni e il logo dei marchi sono **media
 della libreria del core** (`docs/app/concetti/media.md` di `wonder-image/app`):
-la riga ne tiene l'id, il form usa il campo media (`FormField::media()`), che
-sceglie dalla libreria o carica un file nuovo.
+la riga ne tiene l'id, il form usa il drag & drop del core con la libreria
+(`FormField::fileDragDrop()->mediaLibrary()`): il file trascinato diventa un
+media nuovo, «Scegli dalla libreria» ne sceglie uno che c'è.
 
 | Model | Campo | Colonne con l'id | Slug del media creato dal campo | Testo alternativo |
 |---|---|---|---|---|
 | `Category` | `image` | `image_id` | `categoria-{slug}` | `{name}` |
 | `Tag` | `image` | `image_id` | `tag-{slug}` | `{name}` |
-| `Brand` | `logo` | `logo_svg_id` (icona svg), `logo_id` (immagine) | `logo-{slug}` | `Logo {name}` |
+| `Brand` | `logo` | `logo_id` (immagine o icona svg) | `logo-{slug}` | `Logo {name}` |
 | `ProductSelection` | `image` | `image_id` | `selezione-{slug}` | `{title}` |
 | `ProductSelection` | `background` | `background_id` | `selezione-{slug}-sfondo` | nessuno |
 
 Ogni Model dichiara i suoi campi in `mediaFields()` (trait
-`Support\Catalog\HasCatalogMedia`): da lì nascono le colonne (`INT NULL`), i
+`Support\Catalog\HasCatalogMedia`, che usa `Wonder\App\Media\HasMedia`
+del core): da lì nascono le colonne (`INT NULL`), i
 campi dei dati, l'input del form (`CatalogMedia::input($model, $campo, $tipo)`)
 e la migrazione. Il prefisso dello slug evita che la categoria `scarpe` e il
 marchio `scarpe` si contendano lo stesso nome di file: lo slug di un media è
 unico in tutta la libreria, e se è preso il core aggiunge `-2`.
 
-**Il marchio ha due campi** perché un campo media del core ha un tipo solo:
-«Logo» è un'immagine (png, jpg, webp), «Logo vettoriale (svg)» un'icona, che
-il core ripulisce con `SvgSanitizer`. `Brand::logoUrl()` dà il vettoriale se
-c'è, altrimenti il raster.
+**Più tipi, una colonna:** in `mediaFields()` le `columns` mappano un tipo
+alla colonna, e più tipi possono puntare alla stessa. Il logo del marchio
+mappa `image` e `icon` su `logo_id`: il campo accetta png, jpg, webp e svg
+(ripulito dal core con `SvgSanitizer`) e il tipo del media nasce
+dall'estensione. `CatalogMedia::input($model, $campo)` passa al campo tutti i
+tipi della colonna; colonne, campi dei dati e utilizzi sono deduplicati.
+
+`logo_svg_id` (il vecchio logo vettoriale a parte) resta nella tabella,
+deprecato e vuoto: `Migrations\BrandLogoSvgMigration` sposta il suo id in
+`logo_id`, che il sito già preferiva, insieme all'utilizzo nel registro, e
+toglie l'utilizzo del raster sostituito (che resta in libreria).
 
 **Si legge sempre dal Model, mai dalla colonna:**
 
@@ -111,8 +120,9 @@ resta in libreria, non usato. Il modulo non ha altri lettori di questi file:
 feed, esportazioni, API e MCP non li espongono.
 
 **In sola lettura** (le selezioni in produzione) i campi media restano
-modificabili: `editableWhenReadonly()` nomina anche il campo del file caricato
-(`CatalogMedia::requestKeys()`), perché il core filtra la richiesta per nome.
+modificabili: `editableWhenReadonly()` nomina anche i campi del drag & drop
+(`CatalogMedia::requestKeys()`: la colonna, `__wi_files`, `__wi_picks`,
+`__wi_media`), perché il core filtra la richiesta per nome.
 `image_id` e `background_id` stanno in `ProductSelection::SITE_COLUMNS`: la
 libreria è di ogni ambiente e gli id non viaggiano con il deploy.
 
@@ -129,7 +139,10 @@ ogni riga con un file in quella colonna:
    la colonna di prima (`[]`) e registra l'utilizzo con `MediaUsages`;
 3. accoda le misure dell'immagine (o le genera subito senza scheduler).
 
-Il piano è puro (`Support\Catalog\CatalogMediaPlan`, provato in
+La migrazione e il piano sono del core (`Wonder\App\Media\LegacyMediaMigration`
+e `LegacyMediaPlan`): `CatalogMediaMigration` e `CatalogMediaPlan` passano le
+definizioni del catalogo, lo slug del gestionale (`Slug::base`) e le misure
+di `ImageSizes`. Il piano è puro (provato in
 `tests/CatalogMediaMigrationTest.php`): tipo dall'estensione, slug libero,
 copia identica riusata dopo un giro interrotto, righe saltate con il motivo
 (file mancante, estensione non ammessa, indirizzo esterno). Le righe saltate

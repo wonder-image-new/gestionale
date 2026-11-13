@@ -40,19 +40,24 @@ ognuna.
 ## L'immagine e il logo
 
 Categorie e tag hanno un'**immagine**, i marchi un **logo**. Li trovi nella
-scheda, nel riquadro a sinistra, con tre bottoni:
+scheda, nel riquadro a sinistra:
 
+- **Trascina il file nel riquadro** (o cliccalo per sceglierlo dal
+  computer): l'immagine nuova finisce anche nella libreria **Media**. Prende
+  da sola un nome che dice di cosa è («categoria-scarpe») e, come
+  descrizione, il nome della voce. Entro un minuto il pannello ne prepara le
+  misure leggere per il sito.
 - **Scegli dalla libreria:** apre le immagini già caricate in **Media**, con
-  la ricerca. La stessa immagine può servire a più voci.
-- **Carica un file:** carica un'immagine nuova, che finisce anche nella
-  libreria. Prende da sola un nome che dice di cosa è («categoria-scarpe») e,
-  come descrizione, il nome della voce.
-- **Togli:** la voce resta senza immagine. L'immagine non si cancella: resta
-  nella libreria.
+  la ricerca. All'inizio vedi solo quelle caricate da questa sezione o già
+  usate qui (per esempio dalle categorie); spegni l'interruttore **Solo i
+  file di…** per vederle tutte. La stessa immagine può servire a più voci.
+- **La × sul file** lo toglie dalla voce, che resta senza immagine.
+  L'immagine non si cancella: resta nella libreria.
 
-Il marchio ha due campi. **Logo** è un'immagine (png, jpg o webp). **Logo
-vettoriale (svg)** è per chi ha il logo in formato svg, che resta nitido a
-ogni grandezza: se c'è, il sito usa quello.
+Il logo del marchio può essere un'immagine (png, jpg o webp) o un svg, che
+resta nitido a ogni grandezza. Se prima avevi caricato anche un **logo
+vettoriale** a parte, dopo l'aggiornamento è diventato il logo del marchio:
+il raster che c'era resta nella libreria.
 
 Tre cose da sapere:
 
@@ -62,6 +67,15 @@ Tre cose da sapere:
   loro.
 - **Un'immagine in uso non si può eliminare** da **Media**: la scheda
   dell'immagine dice dove è usata. Toglila prima dalle voci che la usano.
+  Negli elenchi di **Media** (immagini, icone, documenti, video) la colonna
+  **Dove si usa** mostra un'etichetta per ogni sezione che usa il file, e il
+  filtro **Sezione** fa vedere solo i file usati nelle sezioni che spunti.
+- Nella scheda di un'immagine in **Media**, il riquadro **File generati** a
+  destra elenca l'originale e le misure che il pannello ha creato per il
+  sito, con formato, dimensioni e peso. Ogni riga si scarica con il suo
+  bottone (o dal menu **Scarica**, se c'è anche il webp); **Scarica tutto
+  (.zip)** le prende tutte insieme. Appena caricata, l'immagine mostra «In
+  preparazione»: le misure arrivano entro un minuto.
 - La descrizione dell'immagine (il testo per chi non la vede) segue il nome
   della voce finché non la riscrivi a mano in **Media**: da quel momento
   resta come l'hai scritta.

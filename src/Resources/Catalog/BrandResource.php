@@ -3,7 +3,6 @@
 namespace Wonder\Plugin\Gestionale\Resources\Catalog;
 
 use RuntimeException;
-use Wonder\App\Media\MediaTypes;
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
@@ -70,7 +69,6 @@ final class BrandResource extends GestionaleResource
             'name' => 'Nome',
             'slug' => 'Url pubblico',
             'logo_id' => 'Logo',
-            'logo_svg_id' => 'Logo vettoriale (svg)',
             'description' => 'Descrizione',
             'visible' => 'Stato',
         ];
@@ -85,11 +83,8 @@ final class BrandResource extends GestionaleResource
                 ->value('true')
                 ->label('Stato')
                 ->required(),
-            // Due media della libreria, perché un campo media ha un tipo
-            // solo: l'immagine (png, jpg, webp) e l'icona svg. Il sito usa
-            // il vettoriale se c'è ({@see Brand::logoUrl()}).
-            CatalogMedia::input(Brand::class, 'logo', MediaTypes::IMAGE)->label('Logo'),
-            CatalogMedia::input(Brand::class, 'logo', MediaTypes::ICON)->label('Logo vettoriale (svg)'),
+            // Un campo solo: immagine (png, jpg, webp) o icona svg.
+            CatalogMedia::input(Brand::class, 'logo')->label('Logo'),
             FormField::key('description')->textarea()->label('Descrizione'),
         ];
     }
@@ -100,11 +95,10 @@ final class BrandResource extends GestionaleResource
             (new Container)->components([
                 (new Card)->components([
                     SectionTitle::make('Marchio')
-                        ->tooltip('L\'url pubblico nasce dal nome alla creazione e non cambia più. Il logo si sceglie dalla libreria Media o si carica qui: se carichi anche quello vettoriale (svg), il sito usa quello.')
+                        ->tooltip('L\'url pubblico nasce dal nome alla creazione e non cambia più. Il logo si trascina qui o si sceglie dalla libreria Media: immagine o svg.')
                         ->columnSpan(12),
                     (new Container)->components([
                         static::getInput('logo_id')->columnSpan(12),
-                        static::getInput('logo_svg_id')->columnSpan(12),
                     ])->columns(12)->columnSpan(4),
                     (new Container)->components([
                         static::getInput('name')->columnSpan(12),
