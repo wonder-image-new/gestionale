@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Models\Catalog\Brand;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
+use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
 use Wonder\Plugin\Gestionale\Resources\Catalog\ProductModelResource;
@@ -405,6 +406,12 @@ final class CatalogLayout extends Layout
         if ($change->action === 'created') {
             // prepare() scarta «deleted»: si scrive diretto.
             $class::query()->Update($class::$table, ['deleted' => 'true'], 'id', $change->recordId);
+
+            if ($class === ProductImage::class) {
+                $row = $class::find(['id' => $change->recordId]);
+                $row = is_array($row) && !isset($row['id']) ? ($row[0] ?? []) : (array) $row;
+                ProductImages::syncUsages((int) ($row['product_model_id'] ?? 0));
+            }
         } elseif ($change->action === 'updated' && $old !== []) {
             $class::update($old, $change->recordId);
         }

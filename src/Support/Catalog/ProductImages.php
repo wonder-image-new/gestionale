@@ -2,7 +2,13 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Catalog;
 
+use Throwable;
+use Wonder\App\Media\MediaFile;
+use Wonder\App\Media\MediaTypes;
+use Wonder\App\Media\MediaUsages;
 use Wonder\App\Media\ResizeQueue;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
+use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 
 /**
  * Quali immagini valgono per una variante, e dove sta il file.
@@ -143,6 +149,12 @@ final class ProductImages
      */
     public static function fileName(array $image): string
     {
+        $media = self::mediaFile($image);
+
+        if ($media !== null) {
+            return $media['file'];
+        }
+
         $raw = $image['file'] ?? '';
 
         if (is_array($raw)) {
@@ -175,7 +187,7 @@ final class ProductImages
 
         $root = rtrim($root ?? (string) ($GLOBALS['ROOT'] ?? ''), '/');
 
-        return $root.'/assets/upload'.self::folder().$name;
+        return $root.'/assets/upload'.self::directory($image).$name;
     }
 
     /** L'indirizzo pubblico, vuoto quando il file non c'è. */
@@ -183,8 +195,184 @@ final class ProductImages
     {
         $name = self::fileName($image);
 
-        return $name === '' ? '' : '/assets/upload'.self::folder().$name;
+        return $name === '' ? '' : '/assets/upload'.self::directory($image).$name;
     }
+
+    /**
+     * Il nome relativo alla cartella degli upload (`immagini/foto.jpg`): i
+     * campi che mostrano foto di cartelle diverse, libreria e di prima,
+     * leggono da lì.
+     */
+    public static function relativeName(array $image): string
+    {
+        $name = self::fileName($image);
+
+        return $name === '' ? '' : trim(self::directory($image), '/').'/'.$name;
+    }
+
+    /**
+     * Le righe di un'area allineate ai media scelti, nell'ordine dato.
+     *
+     * Funzione pura: dice cosa cambiare, non scrive. Le foto di prima (senza
+     * media) non si toccano: il campo non le mostra, quindi non sono state
+     * tolte da nessuno.
+     *
+     * @param list<array<string, mixed>> $rows le righe dell'area
+     * @param list<int> $ids i media nell'ordine voluto
+     * @return array{update: array<int, int>, create: list<array{media_id: int, position: int}>, delete: list<int>}
+     */
+    public static function reconcile(array $rows, array $ids, int $max = 0): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+
+        if ($max > 0) {
+            $ids = array_slice($ids, 0, $max);
+        }
+
+        $byMedia = [];
+        $delete = [];
+
+        foreach ($rows as $row) {
+            $mediaId = self::mediaId($row);
+
+            if ($mediaId === 0) {
+                continue;
+            }
+
+            // Lo stesso media due volte nell'area: la seconda riga è di troppo.
+            if (isset($byMedia[$mediaId])) {
+                $delete[] = (int) $row['id'];
+                continue;
+            }
+
+            $byMedia[$mediaId] = $row;
+        }
+
+        $update = [];
+        $create = [];
+
+        foreach ($ids as $index => $mediaId) {
+            $position = $index + 1;
+            $row = $byMedia[$mediaId] ?? null;
+
+            if ($row === null) {
+                $create[] = ['media_id' => $mediaId, 'position' => $position];
+                continue;
+            }
+
+            unset($byMedia[$mediaId]);
+
+            if ((int) ($row['position'] ?? 0) !== $position) {
+                $update[(int) $row['id']] = $position;
+            }
+        }
+
+        foreach ($byMedia as $row) {
+            $delete[] = (int) $row['id'];
+        }
+
+        return ['update' => $update, 'create' => $create, 'delete' => $delete];
+    }
+
+    /**
+     * Carica in una lettura sola i media delle foto che stanno nella libreria
+     * e li scrive nelle righe (`media_file`, `media_folder`): chi mostra un
+     * elenco la chiama prima, così {@see url()} non legge una foto alla volta.
+     *
+     * @param list<array<string, mixed>> $images
+     * @return list<array<string, mixed>>
+     */
+    public static function hydrate(array $images): array
+    {
+        $ids = [];
+
+        foreach ($images as $image) {
+            if (is_array($image) && self::mediaId($image) > 0 && !isset($image['media_file'])) {
+                $ids[] = self::mediaId($image);
+            }
+        }
+
+        $media = $ids === [] ? [] : MediaFile::many($ids);
+
+        foreach ($images as $key => $image) {
+            $id = is_array($image) ? self::mediaId($image) : 0;
+
+            if ($id > 0 && !isset($image['media_file'])) {
+                $images[$key] = self::withMedia($image, $media[$id] ?? null);
+            }
+        }
+
+        return $images;
+    }
+
+    /** L'id del media della libreria, 0 per le foto di prima. */
+    public static function mediaId(array $image): int
+    {
+        return max(0, (int) ($image['media_id'] ?? 0));
+    }
+
+    /**
+     * L'utilizzo «Foto» di un modello nel registro dei media: i media di
+     * tutte le sue foto ancora in vita. Si chiama dopo ogni scrittura.
+     */
+    public static function syncUsages(int $modelId): void
+    {
+        if ($modelId <= 0) {
+            return;
+        }
+
+        try {
+            $rows = ProductImage::find(['product_model_id' => $modelId, 'deleted' => 'false']);
+            $rows = !is_array($rows) || $rows === [] ? [] : (isset($rows['id']) ? [$rows] : array_filter($rows, 'is_array'));
+            $ids = array_values(array_unique(array_filter(array_map([self::class, 'mediaId'], $rows))));
+
+            MediaUsages::sync(ProductModel::$table, $modelId, 'images', $ids);
+        } catch (Throwable) {
+            // Fuori dal sito (test) o senza registro: lo ricalcola il salvataggio dopo.
+        }
+    }
+
+    /** La cartella del file: quella del tipo del media, o quella di prima. */
+    private static function directory(array $image): string
+    {
+        $media = self::mediaFile($image);
+
+        return $media !== null ? '/'.$media['folder'].'/' : self::folder();
+    }
+
+    /**
+     * Il file e la cartella del media di una foto, o null per le foto di
+     * prima. Senza {@see hydrate()} legge il media qui, una volta per id.
+     *
+     * @return array{file: string, folder: string}|null
+     */
+    private static function mediaFile(array $image): ?array
+    {
+        $id = self::mediaId($image);
+
+        if ($id === 0) {
+            return null;
+        }
+
+        if (!isset($image['media_file'])) {
+            $image = self::withMedia($image, self::$media[$id] ??= MediaFile::find($id) ?? false);
+        }
+
+        return ['file' => (string) $image['media_file'], 'folder' => (string) ($image['media_folder'] ?? '')];
+    }
+
+    /** @param MediaFile|false|null $media */
+    private static function withMedia(array $image, mixed $media): array
+    {
+        // Un media sparito dalla libreria lascia la foto senza file: non si mostra.
+        $image['media_file'] = $media instanceof MediaFile ? $media->file : '';
+        $image['media_folder'] = $media instanceof MediaFile ? MediaTypes::folder($media->type) : '';
+
+        return $image;
+    }
+
+    /** @var array<int, MediaFile|false> i media già letti da {@see mediaFile()} */
+    private static array $media = [];
 
     /** Le misure ci sono, o non servono (un video, un file ridimensionato al salvataggio). */
     public const READY = 'ready';

@@ -86,6 +86,6 @@ final class ProductPhotos
             return [];
         }
 
-        return isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array'));
+        return ProductImages::hydrate(isset($rows['id']) ? [$rows] : array_values(array_filter($rows, 'is_array')));
     }
 }

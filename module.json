@@ -48,7 +48,8 @@
         ],
         "migrations_after_tables": [
             "Wonder\\Plugin\\Gestionale\\Migrations\\ProductImageQueueMigration",
-            "Wonder\\Plugin\\Gestionale\\Migrations\\CatalogMediaMigration"
+            "Wonder\\Plugin\\Gestionale\\Migrations\\CatalogMediaMigration",
+            "Wonder\\Plugin\\Gestionale\\Migrations\\BrandLogoSvgMigration"
         ]
     },
     "console": {

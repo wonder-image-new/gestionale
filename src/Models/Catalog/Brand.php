@@ -16,10 +16,10 @@ use Wonder\Sql\TableSchema as Column;
  * si scrive dove si lavora. Aliquote e impostazioni sono configurazione e
  * viaggiano con il deploy, i prodotti no.
  *
- * Il logo è un media della libreria del core, in due colonne perché un campo
- * media ha un tipo solo: `logo_svg_id` per il logo vettoriale (un'icona svg),
- * `logo_id` per quello raster (un'immagine). {@see logoUrl()} dà il
- * vettoriale se c'è, altrimenti il raster.
+ * Il logo è un media della libreria del core in `logo_id`: un'immagine o
+ * un'icona svg. `logo_svg_id` (il vettoriale separato di prima) è
+ * deprecata: {@see \Wonder\Plugin\Gestionale\Migrations\BrandLogoSvgMigration}
+ * la porta in `logo_id` e la svuota.
  */
 final class Brand extends Model
 {
@@ -44,6 +44,8 @@ final class Brand extends Model
             // la svuota; si legge solo come ripiego ({@see HasCatalogMedia}).
             Column::key('logo')->json(),
             ...static::mediaTableColumns(),
+            // Deprecata: il logo vettoriale separato, ora in `logo_id`.
+            Column::key('logo_svg_id')->int()->null(),
             Column::key('description')->type('TEXT'),
             Column::key('position')->int(),
             Column::key('visible')->enum(['true', 'false'])->default('true'),
@@ -74,8 +76,8 @@ final class Brand extends Model
     {
         return [
             'logo' => [
-                // Il vettoriale si legge per primo.
-                'columns' => ['icon' => 'logo_svg_id', 'image' => 'logo_id'],
+                // Una colonna sola: il logo può essere raster o svg.
+                'columns' => ['image' => 'logo_id', 'icon' => 'logo_id'],
                 'slug' => 'logo-{slug}',
                 'alt' => 'Logo {name}',
                 // La cartella della pagina dei marchi più quella del campo.
@@ -84,7 +86,7 @@ final class Brand extends Model
         ];
     }
 
-    /** L'indirizzo del logo: il vettoriale se c'è, altrimenti il raster; vuoto se manca. */
+    /** L'indirizzo del logo, vuoto se manca. */
     public static function logoUrl(array $row): string
     {
         return static::mediaUrl($row, 'logo');

@@ -64,28 +64,37 @@ deve cambiare sotto i piedi di chi ha messo un link.
 
 L'immagine di categorie, tag e selezioni e il logo dei marchi sono **media
 della libreria del core** (`docs/app/concetti/media.md` di `wonder-image/app`):
-la riga ne tiene l'id, il form usa il campo media (`FormField::media()`), che
-sceglie dalla libreria o carica un file nuovo.
+la riga ne tiene l'id, il form usa il drag & drop del core con la libreria
+(`FormField::fileDragDrop()->mediaLibrary()`): il file trascinato diventa un
+media nuovo, «Scegli dalla libreria» ne sceglie uno che c'è.
 
 | Model | Campo | Colonne con l'id | Slug del media creato dal campo | Testo alternativo |
 |---|---|---|---|---|
 | `Category` | `image` | `image_id` | `categoria-{slug}` | `{name}` |
 | `Tag` | `image` | `image_id` | `tag-{slug}` | `{name}` |
-| `Brand` | `logo` | `logo_svg_id` (icona svg), `logo_id` (immagine) | `logo-{slug}` | `Logo {name}` |
+| `Brand` | `logo` | `logo_id` (immagine o icona svg) | `logo-{slug}` | `Logo {name}` |
 | `ProductSelection` | `image` | `image_id` | `selezione-{slug}` | `{title}` |
 | `ProductSelection` | `background` | `background_id` | `selezione-{slug}-sfondo` | nessuno |
 
 Ogni Model dichiara i suoi campi in `mediaFields()` (trait
-`Support\Catalog\HasCatalogMedia`): da lì nascono le colonne (`INT NULL`), i
+`Support\Catalog\HasCatalogMedia`, che usa `Wonder\App\Media\HasMedia`
+del core): da lì nascono le colonne (`INT NULL`), i
 campi dei dati, l'input del form (`CatalogMedia::input($model, $campo, $tipo)`)
 e la migrazione. Il prefisso dello slug evita che la categoria `scarpe` e il
 marchio `scarpe` si contendano lo stesso nome di file: lo slug di un media è
 unico in tutta la libreria, e se è preso il core aggiunge `-2`.
 
-**Il marchio ha due campi** perché un campo media del core ha un tipo solo:
-«Logo» è un'immagine (png, jpg, webp), «Logo vettoriale (svg)» un'icona, che
-il core ripulisce con `SvgSanitizer`. `Brand::logoUrl()` dà il vettoriale se
-c'è, altrimenti il raster.
+**Più tipi, una colonna:** in `mediaFields()` le `columns` mappano un tipo
+alla colonna, e più tipi possono puntare alla stessa. Il logo del marchio
+mappa `image` e `icon` su `logo_id`: il campo accetta png, jpg, webp e svg
+(ripulito dal core con `SvgSanitizer`) e il tipo del media nasce
+dall'estensione. `CatalogMedia::input($model, $campo)` passa al campo tutti i
+tipi della colonna; colonne, campi dei dati e utilizzi sono deduplicati.
+
+`logo_svg_id` (il vecchio logo vettoriale a parte) resta nella tabella,
+deprecato e vuoto: `Migrations\BrandLogoSvgMigration` sposta il suo id in
+`logo_id`, che il sito già preferiva, insieme all'utilizzo nel registro, e
+toglie l'utilizzo del raster sostituito (che resta in libreria).
 
 **Si legge sempre dal Model, mai dalla colonna:**
 
@@ -111,8 +120,9 @@ resta in libreria, non usato. Il modulo non ha altri lettori di questi file:
 feed, esportazioni, API e MCP non li espongono.
 
 **In sola lettura** (le selezioni in produzione) i campi media restano
-modificabili: `editableWhenReadonly()` nomina anche il campo del file caricato
-(`CatalogMedia::requestKeys()`), perché il core filtra la richiesta per nome.
+modificabili: `editableWhenReadonly()` nomina anche i campi del drag & drop
+(`CatalogMedia::requestKeys()`: la colonna, `__wi_files`, `__wi_picks`,
+`__wi_media`), perché il core filtra la richiesta per nome.
 `image_id` e `background_id` stanno in `ProductSelection::SITE_COLUMNS`: la
 libreria è di ogni ambiente e gli id non viaggiano con il deploy.
 
@@ -129,7 +139,10 @@ ogni riga con un file in quella colonna:
    la colonna di prima (`[]`) e registra l'utilizzo con `MediaUsages`;
 3. accoda le misure dell'immagine (o le genera subito senza scheduler).
 
-Il piano è puro (`Support\Catalog\CatalogMediaPlan`, provato in
+La migrazione e il piano sono del core (`Wonder\App\Media\LegacyMediaMigration`
+e `LegacyMediaPlan`): `CatalogMediaMigration` e `CatalogMediaPlan` passano le
+definizioni del catalogo, lo slug del gestionale (`Slug::base`) e le misure
+di `ImageSizes`. Il piano è puro (provato in
 `tests/CatalogMediaMigrationTest.php`): tipo dall'estensione, slug libero,
 copia identica riusata dopo un giro interrotto, righe saltate con il motivo
 (file mancante, estensione non ammessa, indirizzo esterno). Le righe saltate
@@ -149,6 +162,46 @@ Tre cose da sapere:
   `logoUrl()` / `media()`.
 
 Il ripiego e le colonne di prima si tolgono in una versione successiva.
+
+### Le foto degli articoli nella libreria
+
+`gst_product_images` resta la tabella delle foto (dove sta, posizione, tipo,
+stato), ma il file è un media: la riga tiene `media_id` e `file` è `'[]'`.
+`ProductImages::url()`, `fileName()`, `relativeName()` leggono dal media
+(con `hydrate($righe)` una lettura sola per un elenco), e ripiegano su `file`
+per le righe non ancora migrate.
+
+Nella scheda (`ProductModelResource`):
+
+- **le aree** (`images_<variante>`, riquadro «Foto e video») sono un campo della
+  libreria: `imageField()` con `mediaLibrary()`, tipi immagine e video, slug
+  `{file_prefix}`, testo alternativo `{alt}`. Il valore è la lista dei
+  `media_id`. Al salvataggio `syncAreaMedia()` risolve il campo con
+  `MediaInputs` (caricati o scelti) e `ProductImages::reconcile($righe, $ids)`
+  dà il piano: posizioni da aggiornare, righe da creare, righe da togliere.
+  Le righe senza `media_id` (non migrate) non si toccano;
+- **la testata del colore** (`group_images`) e **le foto dell'opzione**
+  (`photo` del repeater) sono campi della libreria come le aree: multipli
+  (`MAX_IMAGES`), con «Scegli dalla libreria», valore = lista dei `media_id`
+  (`groupImageMedia()`, `optionImages()`). Tutti e tre passano da
+  `syncImageRows()`, che risolve con `MediaInputs` e applica il piano di
+  `reconcile()`. La testata legge manifesto, scelte e mappa di ogni gruppo da
+  `Repeater::groupFilesFromRequest()` del core; la colonna `photo` la salva
+  `saveOptionMedia()` riga per riga, e `repeaterMediaColumns()` la toglie dal
+  giro del core (sennò il file si caricherebbe due volte);
+- **il testo alternativo** di un media nuovo è `{alt}`: il nome
+  dell'articolo seguito dal nome completo dell'opzione (foto della riga) o
+  della variante (testata e aree dei colori), da `altLabels()`;
+- `mediaInputs()` esclude le aree dal giro del controller (le salva
+  `saveExtras()`), e tiene la tabella del modello: eliminarlo libera gli
+  utilizzi;
+- alla fine di `saveExtras()` `ProductImages::syncUsages($modelId)` registra
+  tutti i media delle foto in `media_usages` alla colonna `images` (etichetta
+  «Foto» in «Dove si usa»).
+
+Import e dati di prova scrivono ancora il file nella cartella del modulo e lo
+adottano con `CatalogMediaMigration::adopt()`; le righe di prima le migra
+`CatalogMediaMigration` a ogni `forge update`.
 
 ### L'albero delle categorie
 
@@ -612,17 +665,20 @@ porterebbe via le foto delle singole opzioni, che l'area non mostra e quindi non
 riposta. "Vale per tutto l'articolo" è `NULL` e non zero, perché la colonna ha
 una chiave esterna.
 
-**La foto della riga la scrive il modulo, non il repeater.** La colonna `photo`
-della griglia non è una colonna di `gst_products`: `saveOptionImage()` legge il
-file da `Repeater::filesFromRequest('products', $files)` e inserisce la riga a
-mano. `Model::create()` non sa caricare niente — scriverebbe nel database la
-busta di `$_FILES` — quindi si passa da `Table::prepare()` del core con
-`LegacyGlobals::set('NAME', …)` puntato alla cartella del Model, e si rimette a
-posto in un `finally`.
+**Le foto della riga le scrive il modulo, non il repeater.** La colonna `photo`
+della griglia non è una colonna di `gst_products`: `prepareRepeaterRelationRow()`
+toglie `photo` e i suoi suffissi `__wi_*` dal payload del prodotto, e
+`saveOptionMedia()` (da `saveRowExtras()` per le righe esistenti, da
+`saveNewVersions()` per quelle nuove) passa a `syncImageRows()` il manifesto,
+le scelte, la mappa e la busta di `Repeater::filesFromRequest('products', $files)`
+della riga. Le righe di `gst_product_images` di quell'opzione si allineano con
+`reconcile()` come per le aree. Quando il generatore riprende un prodotto
+esistente, le foto della riga nuova vincono solo se il suo manifesto non è
+vuoto (`hasPhotoManifest()`).
 
-**Foto e video insieme:** il campo è `fileDragDrop('gallery')` e `ProductImage`
-accetta `png, jpg, jpeg, webp, mp4`, 8 MB, un file per riga. Un mp4 non ha
-misure: `uploadFiles()` lo salva com'è.
+**Foto e video insieme:** i campi sono `fileDragDrop('gallery')` della libreria
+con tipi immagine e video, fino a `MAX_IMAGES` file. Un mp4 non ha misure: si
+salva com'è.
 
 **Le misure le genera la coda del core** (G2a.8). Venti foto da telefono
 vogliono dire centinaia di file generati mentre qualcuno aspetta: per questo

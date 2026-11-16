@@ -3,9 +3,9 @@
 namespace Wonder\Plugin\Gestionale\Models\Catalog;
 
 use Wonder\App\Model;
-use Wonder\App\Support\MediaFileManager;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Support\Catalog\HasCatalogMedia;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -17,9 +17,16 @@ use Wonder\Sql\TableSchema as Column;
  * l'immagine della fantasia (tipo Fantasia) o dell'icona (tipo Icona:
  * un'icona è un'immagine sua). Cambiando tipo all'attributo le colonne
  * restano come sono: la scheda smette solo di chiederle.
+ *
+ * L'immagine è un media della libreria del core in `image_id`, scelto dal
+ * repeater della scheda attributo; l'utilizzo sta sull'attributo
+ * (`values.image_id`). `image` è la colonna file di prima, deprecata: la
+ * migrazione la svuota e si legge solo come ripiego.
  */
 final class AttributeValue extends Model
 {
+    use HasCatalogMedia;
+
     public static string $table = 'gst_attribute_values';
     public static string $folder = 'gestionale/attributes';
     public static string $icon = 'bi bi-palette';
@@ -36,7 +43,9 @@ final class AttributeValue extends Model
             Column::key('label'),
             Column::key('description')->type('TEXT'),
             Column::key('color')->length(20),
+            // Deprecata: il file di prima della libreria Media.
             Column::key('image')->json(),
+            ...static::mediaTableColumns(),
             Column::key('position')->int(),
         ];
     }
@@ -64,35 +73,29 @@ final class AttributeValue extends Model
                 ->maxFile(1)
                 ->dir('/catalogo/attributi/')
                 ->name('{label}'),
+            ...static::mediaDataFields(),
             Field::key('position')->number()->decimals(0),
         ];
     }
 
-    /**
-     * L'indirizzo dell'immagine di un valore, vuoto se non ne ha.
-     *
-     * Lo stesso che scrive l'API del core: cartella del modello più quella
-     * del campo.
-     *
-     * @param array<string, mixed> $value
-     */
+    public static function mediaFields(): array
+    {
+        return [
+            'image' => [
+                'columns' => ['image' => 'image_id'],
+                'slug' => 'attributo-{label}',
+                'alt' => '{label}',
+                'name' => '{label}',
+                // La cartella del Model più quella del campo di prima.
+                'legacy' => 'gestionale/attributes/catalogo/attributi',
+                'owner' => ['table' => Attribute::$table, 'key' => 'attribute_id', 'column' => 'values.image_id'],
+            ],
+        ];
+    }
+
+    /** L'indirizzo dell'immagine di un valore, vuoto se non ne ha. */
     public static function imageUrl(array $value): string
     {
-        $files = MediaFileManager::decodeStoredFiles($value['image'] ?? '');
-        $name = (string) (reset($files) ?: '');
-
-        if ($name === '') {
-            return '';
-        }
-
-        $field = static::dataFields()['image'] ?? null;
-        $schema = is_object($field) && method_exists($field, 'getSchema') ? (array) $field->getSchema() : [];
-
-        try {
-            return (string) (static::storedFileUrl($name, $schema) ?? '');
-        } catch (\Throwable) {
-            // Senza l'indirizzo del sito (i test) non c'è un indirizzo da dare.
-            return '';
-        }
+        return static::mediaUrl($value, 'image');
     }
 }

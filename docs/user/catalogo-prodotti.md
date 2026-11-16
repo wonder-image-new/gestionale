@@ -178,7 +178,8 @@ riga: **SKU**, **EAN**, **Scorta minima** (se hai gli
 sola), **Stato** (*Attivo* o *Fermo*), con gli *Acquisti* i **fornitori**
 (vedi [Da chi lo compri e a quanto](#da-chi-lo-compri-e-a-quanto)), con più
 sedi il bottone **Giacenza** con i pezzi e la scorta minima di ogni sede, e
-**Foto o video**, il file di questa riga sola, su cui si trascina.
+**Foto o video**, i file di questa riga sola: ne trascini uno o più, o li
+scegli dalla libreria con **Scegli dalla libreria**.
 
 Eliminando una riga non sparisce: resta lì sbiadita, con scritto che verrà
 eliminata al salvataggio e un **Annulla** per rimetterla. Finché non salvi,
@@ -196,7 +197,8 @@ la testata allora c'è, perché è lì che stanno le sue foto.
 
 Quando il primo attributo è il colore, accanto a *Prezzo del gruppo* c'è
 **Foto del colore**, con il numero dei file già caricati: apre un'area su cui
-trascini le foto di quel colore, e valgono per tutte le sue opzioni. Funziona
+trascini le foto di quel colore (o le scegli dalla libreria), e valgono per
+tutte le sue opzioni. Funziona
 anche mentre crei l'articolo, prima di salvare. Se annulli tutte le righe di un
 colore nuovo, le sue foto non si salvano: il colore non nasce.
 
@@ -372,10 +374,11 @@ categoria padre, e quella nuova compare al suo posto nell'albero, già spuntata.
 
 ## Le foto
 
-Si caricano in due posti, e in tutti e due si trascinano:
+Si caricano in tre posti, e in tutti si trascinano:
 
 - nel riquadro **Foto e video**, in cima a destra: quello che carichi qui
-  compare in **tutte le opzioni**;
+  compare in **tutte le opzioni**. Qui puoi anche **scegliere dalla libreria**
+  una foto o un video già caricati (Media), senza ricaricarli;
 - nella testata del colore, con **Foto del colore**: quelle foto compaiono solo
   nelle opzioni di quel colore;
 - dietro **«Compila le informazioni avanzate»** di una riga, in **Foto o
@@ -385,6 +388,10 @@ Se hai messo la taglia prima del colore, i gruppi sono taglie e una foto della
 taglia S non vorrebbe dire niente: in quel caso le aree dei colori (*Foto blu*,
 *Foto rosso*) restano nel riquadro **Foto e video**, e compaiono dopo il primo
 salvataggio.
+
+Ogni foto che carichi, in uno qualsiasi dei tre posti, finisce anche nella
+**libreria Media**: lì, in «Dove si usa», l'articolo compare alla voce *Foto*.
+Togliere una foto dall'articolo non la cancella dalla libreria.
 
 Quale foto vede il cliente lo spiega [Le foto degli articoli](catalogo-immagini.md).
 

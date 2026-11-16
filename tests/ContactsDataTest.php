@@ -370,7 +370,7 @@ check('la scheda del referente legge gli altri contatti come quella del cliente'
 check('il brand del gestionale eredita logo, sito, domini email e descrizione', function () use ($chiavi) {
     $campi = $chiavi(CompanyBrandResource::class);
 
-    return array_values(array_intersect(['name', 'logo', 'website', 'domains', 'description'], $campi)) === ['name', 'logo', 'website', 'domains', 'description'];
+    return array_values(array_intersect(['name', 'logo_id', 'website', 'domains', 'description'], $campi)) === ['name', 'logo_id', 'website', 'domains', 'description'];
 });
 
 check('«Brand kit» nel pannello: Anagrafiche, spenta di serie, richiede «Brand»; accesa mostra il kit', function () use ($forza, $chiavi) {

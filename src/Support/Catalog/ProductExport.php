@@ -469,7 +469,7 @@ final class ProductExport
                 'models' => $models,
                 'products' => $products,
                 'variants' => self::listOf(ProductVariant::find($in)),
-                'images' => self::listOf(ProductImage::find($in)),
+                'images' => ProductImages::hydrate(self::listOf(ProductImage::find($in))),
                 'categories' => self::listOf(Category::find("`deleted` = 'false'")),
                 'links' => self::listOf(ProductModelCategory::find($in)),
                 'brands' => self::listOf(Brand::find("`deleted` = 'false'")),

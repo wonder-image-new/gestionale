@@ -248,8 +248,14 @@ class AttributeResource extends GestionaleResource
                     // libero — il riordino a mano ne prende tre per le frecce
                     // e il cestino — così una colonna nascosta non lascia un
                     // buco.
-                    RepeaterColumn::key('image')
+                    // L'immagine è un media della libreria: si carica o si
+                    // sceglie, e "Dove si usa" porta all'attributo.
+                    RepeaterColumn::key('image_id')
                         ->fileDragDrop('image')
+                        ->mediaLibrary()
+                        ->mediaTypes('image')
+                        ->mediaSlug('attributo-{label}')
+                        ->mediaAlt('{label}')
                         ->label('Immagine')
                         ->columnSpan(2)
                         ->visibleWhen('type', ['pattern', 'icon']),
