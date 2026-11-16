@@ -19,11 +19,18 @@ destra), c'è un'area per ognuno:
 - **Foto blu**, **Foto rosso**… — un'area per ogni colore. Compaiono quando
   l'articolo ha più di un colore.
 
-E c'è un terzo posto: la colonna **Foto o video** nella griglia delle *opzioni
-in vendita*. Quel file è di quella riga sola — "Blu / S" può avere il suo,
-diverso da "Blu / M".
+E c'è un terzo posto: **Foto o video** nella griglia delle *opzioni in
+vendita*, dietro «Compila le informazioni avanzate». Quei file sono di quella
+riga sola: "Blu / S" può avere i suoi, diversi da "Blu / M".
 
-In tutti e tre i posti si trascina il file dentro il riquadro.
+In tutti i posti puoi trascinare uno o più file dentro il riquadro, oppure
+usare **Scegli dalla libreria** per cercare e riusare una foto già caricata,
+senza caricarla di nuovo.
+
+Ogni foto nuova riceve da sola il **testo alternativo** (quello che leggono i
+motori di ricerca e chi non vede l'immagine): il nome dell'articolo seguito
+dal colore o dall'opzione (colore e taglia, per esempio). Puoi cambiarlo
+dalla libreria Media.
 
 ## Quale foto vede il cliente
 
@@ -42,8 +49,7 @@ colore, non quelle della singola taglia.
 
 ## Foto e video insieme
 
-Si accettano **png**, **jpg**, **webp** e **mp4**, un file per riga, fino a 8 MB
-l'uno. Un video si salva com'è: non ha misure da generare.
+Si accettano **png**, **jpg**, **webp** e **mp4**, fino a 10 file per posto. Un video si salva com'è: non ha misure da generare.
 
 ## Carica e salva: non aspetti
 

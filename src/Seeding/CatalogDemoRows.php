@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Seeding;
 
 use Throwable;
+use Wonder\Plugin\Gestionale\Migrations\CatalogMediaMigration;
 use Wonder\Plugin\Gestionale\Console\Demo\DemoData;
 use Wonder\Plugin\Gestionale\Models\Catalog\Product;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
@@ -118,9 +119,13 @@ trait CatalogDemoRows
             return 0;
         }
 
-        // Le misure vanno alla coda del core e basta: i dati di prova non
-        // aspettano un ridimensionamento, nemmeno dove lo scheduler è fermo.
-        ImageSizes::handOver($dir.$file);
+        // La foto entra subito nella libreria; senza, resta un file di prima
+        // e le misure vanno alla coda del core.
+        if ((int) (CatalogMediaMigration::adopt(ProductImage::class, [(int) ($result->insert_id ?? 0)])['migrated'] ?? 0) > 0) {
+            @unlink($dir.$file);
+        } else {
+            ImageSizes::handOver($dir.$file);
+        }
 
         return 1;
     }

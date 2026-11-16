@@ -63,14 +63,14 @@ check('righe senza file non entrano nel piano', fn () =>
     ], [])]))
 );
 
-check('il logo di un marchio: svg è un\'icona, png un\'immagine, ognuno nella sua colonna e nella sua cartella', function () use ($fonte) {
+check('il logo di un marchio: svg è un\'icona, png un\'immagine, nella stessa colonna e ognuno nella sua cartella', function () use ($fonte) {
     $piano = Plan::plan([$fonte(Brand::class, 'logo', [
         ['id' => '5', 'slug' => 'acme', 'name' => 'Acme', 'logo' => '["acme.svg"]', 'logo_id' => null, 'logo_svg_id' => null],
         ['id' => '6', 'slug' => 'beta', 'name' => 'Beta', 'logo' => '["beta.png"]', 'logo_id' => null, 'logo_svg_id' => null],
     ], ['acme.svg', 'beta.png'])]);
 
     return array_column($piano['create'], 'type', 'id') === [5 => 'icon', 6 => 'image']
-        && array_column($piano['create'], 'column', 'id') === [5 => 'logo_svg_id', 6 => 'logo_id']
+        && array_column($piano['create'], 'column', 'id') === [5 => 'logo_id', 6 => 'logo_id']
         && array_column($piano['create'], 'target', 'id') === [5 => 'icons/logo-acme.svg', 6 => 'images/logo-beta.png']
         && array_column($piano['create'], 'alt', 'id') === [5 => 'Logo Acme', 6 => 'Logo Beta'];
 });

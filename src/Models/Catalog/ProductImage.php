@@ -5,6 +5,7 @@ namespace Wonder\Plugin\Gestionale\Models\Catalog;
 use Wonder\App\Model;
 use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
+use Wonder\Plugin\Gestionale\Support\Catalog\HasCatalogMedia;
 use Wonder\Plugin\Gestionale\Support\Catalog\ProductImages;
 use Wonder\Sql\TableSchema as Column;
 
@@ -26,6 +27,11 @@ use Wonder\Sql\TableSchema as Column;
  * Lo stato si legge dalla coda, per percorso del file
  * (`ProductImages::state()` ed `error()`), non da questa tabella.
  *
+ * **Il file sta nella libreria media.** `media_id` punta al media (immagine
+ * o video) e la colonna `file` resta vuota; le righe di prima tengono il
+ * file finché la migrazione dei media non le sposta. L'utilizzo si registra
+ * sull'articolo, colonna `images`, con i media di tutte le sue foto.
+ *
  * @deprecated le colonne `status`, `attempts`, `processed_at`, `error`: erano
  *             della coda del modulo (`ImageQueue`), che non c'è più. Restano
  *             nella tabella e non si leggono più, con due eccezioni: `pending`
@@ -36,6 +42,8 @@ use Wonder\Sql\TableSchema as Column;
  */
 final class ProductImage extends Model
 {
+    use HasCatalogMedia;
+
     public static string $table = 'gst_product_images';
     // La stessa cartella che usa la pagina dei modelli per rileggere i file.
     public static string $folder = ProductImages::DIR;
@@ -60,6 +68,7 @@ final class ProductImage extends Model
             // invece di sparire con lei.
             Column::key('product_id')->int()->foreign(Product::$table),
             Column::key('file')->json(),
+            ...static::mediaTableColumns(),
             Column::key('alt'),
             // Che foto è (Support\Catalog\ProductImages::TYPES): `packshot` il
             // prodotto da solo, `lifestyle` il prodotto in uso, con le persone o
@@ -72,6 +81,21 @@ final class ProductImage extends Model
             Column::key('attempts')->int(),
             Column::key('processed_at')->datetime(),
             Column::key('error')->type('TEXT'),
+        ];
+    }
+
+    public static function mediaFields(): array
+    {
+        return [
+            'file' => [
+                'columns' => ['image' => 'media_id', 'video' => 'media_id'],
+                'slug' => 'prodotto-{product_model_id}-{id}',
+                'alt' => '{alt}',
+                'name' => 'Foto prodotto {id}',
+                'extensions' => ['png', 'jpg', 'jpeg', 'webp', 'mp4'],
+                'legacy' => trim(ProductImages::DIR, '/'),
+                'owner' => ['table' => ProductModel::$table, 'key' => 'product_model_id', 'column' => 'images'],
+            ],
         ];
     }
 
@@ -107,6 +131,7 @@ final class ProductImage extends Model
             Field::key('product_variant_id')->number()->decimals(0),
             Field::key('product_id')->number()->decimals(0),
             self::image(),
+            ...static::mediaDataFields(),
             Field::key('alt')->text()->sanitize(),
             Field::key('type')->text()->sanitize(false),
             Field::key('position')->number()->decimals(0),

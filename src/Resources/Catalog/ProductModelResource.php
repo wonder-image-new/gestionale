@@ -15,6 +15,10 @@ use Wonder\App\ResourceSchema\RepeaterColumn;
 use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\App\ResourceSchema\Inputs\InputNumber;
+use Wonder\App\ResourceSchema\Inputs\InputFileDragDrop;
+use Wonder\App\ResourceSchema\Inputs\InputMedia;
+use Wonder\App\Media\MediaInputs;
+use Wonder\App\Media\MediaTypes;
 use Wonder\Backend\Support\ResourceFormLayoutRenderer;
 use Wonder\Backend\Table\Badge\BooleanBadge;
 use Wonder\Elements\Components\Accordion;
@@ -155,6 +159,9 @@ class ProductModelResource extends GestionaleResource
      */
     public const MAX_IMAGES = 10;
 
+    /** @var array<int, array{variants: array<int, string>, options: array<int, string>}> */
+    protected static array $altLabels = [];
+
     /** L'id del bottone «Nuova caratteristica»: lo script della scheda lo cerca. */
     protected const TECHNICAL_BUTTON = 'wi-technical-new';
 
@@ -221,6 +228,8 @@ class ProductModelResource extends GestionaleResource
             'brand_id' => 'Marchio',
             'tax_category_id' => 'Tipo fiscale',
             'photo' => 'Foto',
+            // «Dove si usa» della libreria: le foto del modello.
+            'images' => 'Foto',
             'sku' => 'SKU',
             'price' => 'Prezzo',
             'versions' => 'Varianti',
@@ -4045,6 +4054,9 @@ HTML
             return;
         }
 
+        // I nomi per il testo alternativo si rileggono a ogni salvataggio.
+        unset(static::$altLabels[$modelId]);
+
         Transaction::run(static function () use ($modelId, $post, $fallbackSku, $files, $appenaNato): void {
             static::saveCategories($modelId, $post);
             static::saveTags($modelId, $post);
@@ -4172,6 +4184,9 @@ HTML
             // rimette in riga a ogni salvataggio.
             static::realignNames($modelId);
         });
+
+        // «Dove si usa» della libreria: le foto del modello dopo il salvataggio.
+        ProductImages::syncUsages($modelId);
     }
 
     /**
@@ -4326,15 +4341,15 @@ HTML
                 $scritte[$productId] = $quantita;
             }
 
-            if ($nuova === null || !static::isUpload($caricate[$nuova]['photo'] ?? null)) {
-                $foto[$productId] = $caricate[$chiave]['photo'] ?? null;
+            if ($nuova === null || !static::hasPhotoManifest($righe[$nuova] ?? [])) {
+                $foto[$productId] = $chiave;
             }
         }
 
         static::adjustStock($scritte);
 
-        foreach ($foto as $productId => $file) {
-            static::saveOptionImage($modelId, $productId, $file);
+        foreach ($foto as $productId => $chiave) {
+            static::saveOptionMedia($modelId, $productId, $righe[$chiave], $caricate[$chiave]['photo'] ?? null);
         }
     }
 
@@ -4385,11 +4400,12 @@ HTML
                 static::loadInitialStock($productId, $quantita);
             }
 
-            static::saveOptionImage(
-                $modelId,
-                $riga['product_id'],
-                $caricate[$chiave]['photo'] ?? null
-            );
+            // Lo scheletro ripreso tiene le sue foto, se la riga nuova non ne ha.
+            if (isset($riprese[$productId]) && !static::hasPhotoManifest($scritto)) {
+                continue;
+            }
+
+            static::saveOptionMedia($modelId, $productId, $scritto, $caricate[$chiave]['photo'] ?? null);
         }
     }
 
@@ -4414,44 +4430,48 @@ HTML
     }
 
     /**
-     * La foto di una riga della griglia.
+     * Le foto di una riga della griglia, caricate o scelte dalla libreria.
      *
-     * Sta su quella singola opzione in vendita: «Blu / S» può avere la sua,
-     * diversa da «Blu / M». Chi guarda un colore continua a vedere le foto del
-     * colore — l'eredità la fa `ProductImages::for()` — e questa vale solo
-     * dove è stata caricata.
+     * Stanno su quella singola opzione in vendita: «Blu / S» può avere le
+     * sue, diverse da «Blu / M». Chi guarda un colore continua a vedere le
+     * foto del colore (l'eredità la fa `ProductImages::for()`), e queste
+     * valgono solo dove sono state messe.
+     *
+     * @param array<string, mixed> $riga La riga postata, con i campi del caricamento.
      */
-    protected static function saveOptionImage(int $modelId, int $productId, mixed $file): void
+    protected static function saveOptionMedia(int $modelId, int $productId, array $riga, mixed $busta): void
     {
-        if (!static::isUpload($file) || $productId <= 0) {
+        if ($productId <= 0) {
             return;
         }
 
         $prodotto = static::rowsOf(Product::class, ['id' => $productId])[0] ?? null;
         $variantId = (int) (is_array($prodotto) ? ($prodotto['product_variant_id'] ?? 0) : 0);
+        $valori = ['photo' => $busta];
 
-        static::createImageRow(
+        foreach ([MediaInputs::FILES_SUFFIX, MediaInputs::PICKS_SUFFIX, MediaInputs::MAP_SUFFIX] as $suffisso) {
+            if (array_key_exists('photo'.$suffisso, $riga)) {
+                $valori['photo'.$suffisso] = $riga['photo'.$suffisso];
+            }
+        }
+
+        static::syncImageRows(
             $modelId,
             $variantId,
             $productId,
-            $file,
-            count(static::rowsOf(ProductImage::class, ['product_model_id' => $modelId])) + 1
+            static::rowsOf(ProductImage::class, ['product_model_id' => $modelId, 'product_id' => $productId], 'position'),
+            'photo',
+            $valori
         );
     }
 
-    /** Se nella casella c'è davvero un file caricato. */
-    protected static function isUpload(mixed $file): bool
+    /** Se la riga postata ha almeno una foto nel campo. */
+    protected static function hasPhotoManifest(array $riga): bool
     {
-        if (!is_array($file) || !isset($file['name'])) {
-            return false;
-        }
+        $manifesto = $riga['photo'.MediaInputs::FILES_SUFFIX] ?? null;
+        $manifesto = is_array($manifesto) ? $manifesto : json_decode((string) $manifesto, true);
 
-        $nomi = (array) $file['name'];
-        $errori = (array) ($file['error'] ?? []);
-
-        // `UPLOAD_ERR_NO_FILE`: la casella è rimasta vuota, e va benissimo.
-        return trim((string) ($nomi[0] ?? '')) !== ''
-            && (int) ($errori[0] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
+        return is_array($manifesto) && $manifesto !== [];
     }
 
     /**
@@ -4481,13 +4501,72 @@ HTML
                 continue;
             }
 
-            $manifesto = json_decode((string) $post[$campo.'__wi_files'], true);
+            static::syncAreaMedia($modelId, (int) $variantId, $campo, $post, $files);
+        }
+    }
 
-            if (!is_array($manifesto)) {
-                continue;
+    /** Le foto di un'area dal suo campo della libreria. */
+    protected static function syncAreaMedia(int $modelId, int $variantId, string $campo, array $post, array $files): void
+    {
+        $valori = [$campo => $files[$campo] ?? null];
+
+        foreach ([MediaInputs::FILES_SUFFIX, MediaInputs::PICKS_SUFFIX, MediaInputs::MAP_SUFFIX] as $suffisso) {
+            if (array_key_exists($campo.$suffisso, $post)) {
+                $valori[$campo.$suffisso] = $post[$campo.$suffisso];
             }
+        }
 
-            static::syncAreaImages($modelId, (int) $variantId, $manifesto, $files[$campo] ?? null);
+        static::syncImageRows($modelId, $variantId, null, static::areaImages($modelId, $variantId), $campo, $valori);
+    }
+
+    /**
+     * Le righe di `gst_product_images` di un campo della libreria: i media
+     * caricati o scelti, nell'ordine voluto, diventano righe; quelle che il
+     * campo non nomina più se ne vanno. Vale per l'area di un colore, per
+     * la testata del gruppo e per la singola opzione (`$productId`).
+     *
+     * @param list<array<string, mixed>> $righe Le righe attuali del campo.
+     * @param array<string, mixed> $valori Il caricamento e i campi `__wi_*` del campo.
+     */
+    protected static function syncImageRows(
+        int $modelId,
+        int $variantId,
+        ?int $productId,
+        array $righe,
+        string $campo,
+        array $valori
+    ): void {
+        // Senza manifesto il campo non era in pagina: toccarlo cancellerebbe tutto.
+        if (!array_key_exists($campo.MediaInputs::FILES_SUFFIX, $valori)) {
+            return;
+        }
+
+        $attuali = array_values(array_filter(array_map([ProductImages::class, 'mediaId'], $righe)));
+        $media = new MediaInputs(ProductImage::$table, [$campo => static::imageField($campo, '')->mediaConfig()]);
+        $risolti = $media->resolve(
+            $valori + static::mediaTemplateValues($modelId, $variantId, $productId),
+            [$campo => json_encode($attuali)]
+        );
+
+        foreach ($media->errors() as $errore) {
+            $GLOBALS['ALERT'] = $errore;
+            // Con un errore le foto restano com'erano: meglio che perderle.
+            return;
+        }
+
+        $media->commitAlts();
+        $piano = ProductImages::reconcile($righe, InputFileDragDrop::mediaIds($risolti[$campo] ?? []), static::MAX_IMAGES);
+
+        foreach ($piano['update'] as $id => $posizione) {
+            ProductImage::update(['position' => $posizione], $id);
+        }
+
+        foreach ($piano['create'] as $nuova) {
+            static::createImageRow($modelId, $variantId, $productId, $nuova['media_id'], $nuova['position']);
+        }
+
+        foreach ($piano['delete'] as $id) {
+            ProductImage::delete($id);
         }
     }
 
@@ -4526,7 +4605,20 @@ HTML
                 continue;
             }
 
-            static::syncAreaImages($modelId, $variantId, $gruppo['manifest'], $gruppo['files']);
+            $valori = [
+                'group_images' => $gruppo['files'],
+                'group_images'.MediaInputs::FILES_SUFFIX => json_encode($gruppo['manifest']),
+            ];
+
+            if ($gruppo['picks'] !== null) {
+                $valori['group_images'.MediaInputs::PICKS_SUFFIX] = $gruppo['picks'];
+            }
+
+            if ($gruppo['map'] !== null) {
+                $valori['group_images'.MediaInputs::MAP_SUFFIX] = $gruppo['map'];
+            }
+
+            static::syncImageRows($modelId, $variantId, null, static::areaImages($modelId, $variantId), 'group_images', $valori);
             $salvate[] = $variantId;
         }
 
@@ -4534,159 +4626,77 @@ HTML
     }
 
     /**
-     * @param list<mixed> $manifesto
-     * @param array<string, mixed>|null $caricati La busta di `$_FILES` del campo.
-     */
-    protected static function syncAreaImages(
-        int $modelId,
-        int $variantId,
-        array $manifesto,
-        mixed $caricati
-    ): void {
-        $esistenti = [];
-
-        foreach (static::areaImages($modelId, $variantId) as $riga) {
-            $nome = ProductImages::fileName($riga);
-
-            if ($nome !== '') {
-                $esistenti[$nome] = $riga;
-            }
-        }
-
-        $tenute = [];
-        $posizione = 0;
-
-        foreach ($manifesto as $voce) {
-            $posizione++;
-
-            if (is_string($voce)) {
-                $riga = $esistenti[$voce] ?? null;
-
-                if (!is_array($riga)) {
-                    continue;
-                }
-
-                $tenute[$voce] = true;
-
-                if ((int) ($riga['position'] ?? 0) !== $posizione) {
-                    ProductImage::update(['position' => $posizione], (int) $riga['id']);
-                }
-
-                continue;
-            }
-
-            $busta = static::uploadedFile($caricati, (int) $voce);
-
-            if ($busta === null) {
-                continue;
-            }
-
-            static::createImageRow($modelId, $variantId, null, $busta, $posizione);
-        }
-
-        // Quello che il manifesto non nomina non si vende più: la riga se ne
-        // va. Il file resta sul disco — cancellarlo qui vorrebbe dire
-        // fidarsi che nessun'altra riga lo usi.
-        foreach ($esistenti as $nome => $riga) {
-            if (!isset($tenute[$nome])) {
-                ProductImage::delete((int) $riga['id']);
-            }
-        }
-    }
-
-    /**
-     * Una busta di `$_FILES` a un solo file, presa da quella a più file del
-     * campo.
-     *
-     * @return array<string, mixed>|null
-     */
-    protected static function uploadedFile(mixed $caricati, int $indice): ?array
-    {
-        if (!is_array($caricati) || !isset($caricati['name'])) {
-            return null;
-        }
-
-        $nomi = (array) $caricati['name'];
-
-        if (!array_key_exists($indice, $nomi)) {
-            return null;
-        }
-
-        $errori = (array) ($caricati['error'] ?? []);
-        $errore = (int) ($errori[$indice] ?? UPLOAD_ERR_NO_FILE);
-
-        if (trim((string) $nomi[$indice]) === '' || $errore !== UPLOAD_ERR_OK) {
-            return null;
-        }
-
-        // La stessa forma che il core si aspetta da un campo a un file solo:
-        // ogni chiave è una lista di uno.
-        $busta = [];
-
-        foreach (['name', 'type', 'tmp_name', 'error', 'size', 'full_path'] as $chiave) {
-            if (!isset($caricati[$chiave])) {
-                continue;
-            }
-
-            $valori = (array) $caricati[$chiave];
-            $busta[$chiave] = [$valori[$indice] ?? null];
-        }
-
-        return $busta;
-    }
-
-    /**
-     * Una riga di `gst_product_images` con il suo file su disco.
-     *
-     * `Model::create()` non sa caricare niente: scriverebbe nel database la
-     * busta di `$_FILES` invece del file. Chi sposta il file è la
-     * preparazione del core — la stessa che usano i repeater — e vuole sapere
-     * in quale cartella scrivere, che è quella del Model.
+     * Una riga di `gst_product_images` che punta a un media della libreria.
+     * Il file e le sue misure sono del media: la riga tiene solo dove sta
+     * la foto e in che posizione.
      */
     protected static function createImageRow(
         int $modelId,
         int $variantId,
         ?int $productId,
-        array $file,
+        int $mediaId,
         int $posizione
     ): void {
-        $campo = static fn (string $classe, int $id, string $colonna): string =>
-            $id > 0 ? (string) (static::rowsOf($classe, ['id' => $id])[0][$colonna] ?? '') : '';
-
-        $riga = [
+        ProductImage::create([
             'product_model_id' => $modelId,
             'product_variant_id' => $variantId > 0 ? $variantId : null,
             'product_id' => $productId,
-            'file' => $file,
+            'media_id' => $mediaId,
+            'file' => '[]',
             'alt' => '',
             'position' => $posizione,
-            // Le misure le accoda `uploadFiles()` nella coda del core: la
-            // colonna della vecchia coda del modulo non ha niente da dire.
             'status' => ProductImages::READY,
-            // Non è una colonna: il core lo mette al posto di `{file_prefix}`
-            // nel nome del file, che così dice di chi è la foto.
-            'file_prefix' => ProductImages::filePrefix(
+        ]);
+    }
+
+    /**
+     * I valori per i modelli di slug e testo alternativo dei media nuovi:
+     * `{name}` è il nome dell'articolo, `{alt}` il nome con la variante o
+     * l'opzione («Maglietta Blu / S»), `{file_prefix}` dice di chi è la foto.
+     *
+     * @return array<string, string>
+     */
+    protected static function mediaTemplateValues(int $modelId, int $variantId, ?int $productId): array
+    {
+        $campo = static fn (string $classe, int $id, string $colonna): string =>
+            $id > 0 ? (string) (static::rowsOf($classe, ['id' => $id])[0][$colonna] ?? '') : '';
+        $nome = $campo(ProductModel::class, $modelId, 'name');
+        $etichette = static::altLabels($modelId);
+        $dettaglio = (int) $productId > 0
+            ? ($etichette['options'][(int) $productId] ?? '')
+            : ($etichette['variants'][$variantId] ?? '');
+
+        return [
+            'name' => $nome,
+            'alt' => trim($nome.' '.($dettaglio !== $nome ? $dettaglio : '')),
+            'file_prefix' => rtrim(ProductImages::filePrefix(
                 $campo(ProductModel::class, $modelId, 'slug'),
                 $campo(ProductVariant::class, $variantId, 'slug'),
                 $campo(Product::class, (int) $productId, 'name')
-            ),
+            ), '-'),
         ];
+    }
 
-        $precedente = LegacyGlobals::get('NAME');
-
-        LegacyGlobals::set('NAME', (object) [
-            'table' => ProductImage::$table,
-            'folder' => trim((string) ProductImage::$folder, '/'),
-            'schema' => ProductImage::$table,
-        ]);
-
-        try {
-            $pronta = Table::key(ProductImage::$table)->prepare($riga);
-        } finally {
-            LegacyGlobals::set('NAME', $precedente);
+    /**
+     * I nomi di varianti e opzioni per il testo alternativo, letti una volta
+     * per salvataggio: dopo il generatore, prima che `realignNames()` li
+     * riscriva sulle righe.
+     *
+     * @return array{variants: array<int, string>, options: array<int, string>}
+     */
+    protected static function altLabels(int $modelId): array
+    {
+        if (!isset(static::$altLabels[$modelId])) {
+            static::$altLabels[$modelId] = [
+                'variants' => static::variantLabels($modelId),
+                'options' => array_map(
+                    static fn (array $nomi): string => (string) ($nomi['full'] ?? ''),
+                    static::optionLabels($modelId)
+                ),
+            ];
         }
 
-        sqlInsert(ProductImage::$table, $pronta);
+        return static::$altLabels[$modelId];
     }
 
     /**
@@ -5087,7 +5097,10 @@ HTML
         }
 
         foreach (array_keys(static::imageTargets($modelId)) as $variantId) {
-            $values['images_'.$variantId] = static::imageNames($modelId, (int) $variantId);
+            $values['images_'.$variantId] = array_values(array_filter(array_map(
+                [ProductImages::class, 'mediaId'],
+                static::areaImages($modelId, (int) $variantId)
+            )));
         }
 
         foreach (static::usedOptionValues($modelId) as $key => $ids) {
@@ -5115,6 +5128,13 @@ HTML
     ): array {
         if ($inputName === 'prices') {
             return SubscriptionProductForm::relationRow($payload, $existingRow);
+        }
+
+        // Le foto della riga non sono colonne del prodotto: le salva saveOptionMedia().
+        if ($inputName === 'products') {
+            foreach (['', MediaInputs::FILES_SUFFIX, MediaInputs::PICKS_SUFFIX, MediaInputs::MAP_SUFFIX, MediaInputs::UPLOAD_SUFFIX] as $suffisso) {
+                unset($payload['photo'.$suffisso]);
+            }
         }
 
         if ($existingRow !== null) {
@@ -6553,13 +6573,58 @@ HTML)->tag('div');
         foreach (static::imageTargets($modelId) as $variantId => $titolo) {
             // L'area dell'articolo non ha un'etichetta sua: sta sotto il
             // titolo del riquadro, che dice già cosa contiene.
-            $fields[] = FormField::key('images_'.$variantId)
-                ->fileDragDrop('gallery')
-                ->maxFile(static::MAX_IMAGES)
-                ->label($variantId === 0 ? '' : $titolo);
+            $fields[] = static::imageField('images_'.$variantId, $variantId === 0 ? '' : $titolo);
         }
 
         return $fields;
+    }
+
+    /** Il campo delle foto di un'area: foto e video della libreria. */
+    protected static function imageField(string $key, string $label): InputFileDragDrop
+    {
+        return FormField::key($key)
+            ->fileDragDrop('gallery')
+            ->maxFile(static::MAX_IMAGES)
+            ->mediaLibrary()
+            ->mediaTypes(MediaTypes::IMAGE, MediaTypes::VIDEO)
+            ->mediaSlug('{file_prefix}')
+            ->mediaAlt('{alt}')
+            ->label($label);
+    }
+
+    /**
+     * I media del core senza le aree delle foto: quelle le salva
+     * {@see syncAreaMedia()} sulle righe di `gst_product_images`. La tabella
+     * resta quella del modello, così eliminarlo libera anche le foto.
+     */
+    public static function mediaInputs(): MediaInputs
+    {
+        $fields = [];
+
+        foreach (static::safeFormFieldsByKey() as $name => $field) {
+            if (str_starts_with((string) $name, 'images_')) {
+                continue;
+            }
+
+            if ($field instanceof InputMedia || ($field instanceof InputFileDragDrop && $field->isMedia())) {
+                $fields[(string) $name] = $field->mediaConfig();
+            }
+        }
+
+        return new MediaInputs(static::modelTable(), $fields);
+    }
+
+    /**
+     * Le foto delle opzioni non passano dal core: le salva
+     * {@see saveOptionMedia()} sulle righe di `gst_product_images`.
+     */
+    public static function repeaterMediaColumns(object $field): array
+    {
+        if ($field instanceof Input && $field->name === 'products') {
+            return [];
+        }
+
+        return parent::repeaterMediaColumns($field);
     }
 
     /**
@@ -6571,8 +6636,8 @@ HTML)->tag('div');
     {
         $nomi = [];
 
-        foreach (static::areaImages($modelId, $variantId) as $riga) {
-            $nome = ProductImages::fileName($riga);
+        foreach (ProductImages::hydrate(static::areaImages($modelId, $variantId)) as $riga) {
+            $nome = ProductImages::relativeName($riga);
 
             if ($nome !== '') {
                 $nomi[] = $nome;
@@ -7906,14 +7971,13 @@ HTML)->tag('div');
         $id = (int) ($attribute['id'] ?? 0);
         $type = (string) ($attribute['type'] ?? '');
         $choices = [];
+        $values = array_filter(static::attributeValues(), static fn (array $value): bool => (int) ($value['attribute_id'] ?? 0) === $id);
+        // Le immagini con una lettura sola, non una per valore.
+        $media = in_array($type, ['pattern', 'icon'], true) ? AttributeValue::mediaMany($values, 'image') : [];
 
-        foreach (static::attributeValues() as $value) {
-            if ((int) ($value['attribute_id'] ?? 0) !== $id) {
-                continue;
-            }
-
+        foreach ($values as $key => $value) {
             $label = (string) ($value['label'] ?? '');
-            $imageUrl = in_array($type, ['pattern', 'icon'], true) ? AttributeValue::imageUrl($value) : '';
+            $imageUrl = in_array($type, ['pattern', 'icon'], true) ? AttributeValue::mediaUrl($value, 'image', $media[$key] ?? null) : '';
             $visual = Attributes::valueVisual($type, $value, $imageUrl);
             $choices[(string) $value['id']] = $visual === [] ? $label : ['name' => $label] + $visual;
         }
@@ -8057,7 +8121,15 @@ HTML)->tag('div');
                 ...$fornitori['buttons'],
                 // Un rettangolo su cui si trascina un file non si legge
                 // stretto: prende la riga intera del blocco.
-                RepeaterColumn::key('photo')->fileDragDrop('gallery')->label('Foto o video')->columnSpan(12),
+                RepeaterColumn::key('photo')
+                    ->fileDragDrop('gallery')
+                    ->maxFile(static::MAX_IMAGES)
+                    ->mediaLibrary()
+                    ->mediaTypes(MediaTypes::IMAGE, MediaTypes::VIDEO)
+                    ->mediaSlug('{file_prefix}')
+                    ->mediaAlt('{alt}')
+                    ->label('Foto o video')
+                    ->columnSpan(12),
             ])
             ->relation(
                 RepeaterRelation::make(Product::$table, 'product_model_id')
@@ -8101,8 +8173,12 @@ HTML)->tag('div');
                     FormField::key('group_images')
                         ->fileDragDrop('gallery')
                         ->maxFile(static::MAX_IMAGES)
+                        ->mediaLibrary()
+                        ->mediaTypes(MediaTypes::IMAGE, MediaTypes::VIDEO)
+                        ->mediaSlug('{file_prefix}')
+                        ->mediaAlt('{alt}')
                         ->label('')
-                        ->value(static::groupImageNames($modelId)),
+                        ->value(static::groupImageMedia($modelId)),
                     'group_value',
                     'Foto del colore'
                 );
@@ -8692,26 +8768,28 @@ HTML
     }
 
     /**
-     * Le foto di ogni colore, per id del valore: il valore del campo della
+     * I media di ogni colore, per id del valore: il valore del campo della
      * testata.
      *
-     * @return array<string, list<string>>
+     * @return array<string, list<int>>
      */
-    protected static function groupImageNames(int $modelId): array
+    protected static function groupImageMedia(int $modelId): array
     {
         if ($modelId <= 0) {
             return [];
         }
 
-        $nomi = [];
+        $media = [];
 
         foreach (static::variantValues($modelId) as $variantId => $valueId) {
             if ($valueId > 0) {
-                $nomi[(string) $valueId] = static::imageNames($modelId, (int) $variantId);
+                $media[(string) $valueId] = array_values(array_filter(
+                    array_map([ProductImages::class, 'mediaId'], static::areaImages($modelId, (int) $variantId))
+                ));
             }
         }
 
-        return $nomi;
+        return $media;
     }
 
     /**
@@ -9132,13 +9210,13 @@ HTML
     }
 
     /**
-     * La foto di ogni opzione in vendita, nella forma che legge il campo.
+     * I media di ogni opzione in vendita, in ordine: il valore del campo.
      *
-     * Solo quelle davvero sue: le foto del colore e quelle dell'articolo si
-     * caricano nel riquadro delle foto, e mostrarle qui farebbe credere che
+     * Solo quelli davvero suoi: le foto del colore e quelle dell'articolo
+     * stanno nel riquadro delle foto, e mostrarle qui farebbe credere che
      * appartengano a questa riga.
      *
-     * @return array<int, string>
+     * @return array<int, list<int>>
      */
     protected static function optionImages(int $modelId): array
     {
@@ -9146,9 +9224,10 @@ HTML
 
         foreach (static::rowsOf(ProductImage::class, ['product_model_id' => $modelId], 'position') as $image) {
             $productId = (int) ($image['product_id'] ?? 0);
+            $mediaId = ProductImages::mediaId($image);
 
-            if ($productId > 0 && !isset($foto[$productId])) {
-                $foto[$productId] = (string) ($image['file'] ?? '');
+            if ($productId > 0 && $mediaId > 0) {
+                $foto[$productId][] = $mediaId;
             }
         }
 

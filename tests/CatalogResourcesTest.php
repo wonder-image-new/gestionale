@@ -199,8 +199,11 @@ check('le colonne dei valori chiedono quello che serve al tipo', function () {
         $colonne[(string) $colonna->name] = $colonna;
     }
 
-    return array_keys($colonne) === ['id', 'image', 'label', 'color', 'description']
-        && $colonne['image']->conditionalAttributes() === [
+    return array_keys($colonne) === ['id', 'image_id', 'label', 'color', 'description']
+        // L'immagine è un media della libreria, solo immagini.
+        && $colonne['image_id']->isMedia()
+        && $colonne['image_id']->mediaConfig()['types'] === ['image']
+        && $colonne['image_id']->conditionalAttributes() === [
             'data-visible-when' => 'type',
             'data-visible-when-values' => 'pattern,icon',
         ]

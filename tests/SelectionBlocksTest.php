@@ -216,7 +216,7 @@ check('la selezione nasce in locale: definizione sincronizzata, testi, foto ed e
         && array_diff(['image_id', 'background_id'], ProductSelection::SITE_COLUMNS) === []
         && array_diff([...ProductSelection::SITE_COLUMNS, 'placements'], ProductSelectionResource::editableWhenReadonly()) === []
         // Il file caricato in un campo media ha un nome suo: in sola lettura deve passare anche lui.
-        && array_diff(['image_id__wi_media_upload', 'background_id__wi_media_upload'], ProductSelectionResource::editableWhenReadonly()) === []
+        && array_diff(['image_id__wi_files', 'image_id__wi_picks', 'image_id__wi_media', 'background_id__wi_files'], ProductSelectionResource::editableWhenReadonly()) === []
         && !in_array('source_tag_slugs', ProductSelectionResource::editableWhenReadonly(), true);
 });
 

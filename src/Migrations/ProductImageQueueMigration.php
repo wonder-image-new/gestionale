@@ -53,8 +53,13 @@ final class ProductImageQueueMigration implements ModuleMigration
             return [];
         }
 
+        // Le righe già nella libreria media hanno `file` vuoto: le loro
+        // misure le ha già preparate la libreria.
+        $columns = $connection->query('SHOW COLUMNS FROM `'.self::TABLE."` LIKE 'media_id'");
+        $media = $columns && $columns->num_rows > 0 ? ', `media_id`' : '';
+
         $result = $connection->query(
-            'SELECT `id`, `file` FROM `'.self::TABLE."` WHERE `status` = 'pending' ORDER BY `id`"
+            'SELECT `id`, `file`'.$media.' FROM `'.self::TABLE."` WHERE `status` = 'pending' ORDER BY `id`"
         );
         $rows = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
 
@@ -80,7 +85,7 @@ final class ProductImageQueueMigration implements ModuleMigration
     /**
      * Cosa fare di ogni riga in attesa, senza toccare database né disco.
      *
-     * @param list<array<string, mixed>> $rows righe `pending`, con `id` e `file`
+     * @param list<array<string, mixed>> $rows righe `pending`, con `id`, `file` e magari `media_id`
      * @param callable(array): string $path il percorso assoluto del file di una riga, vuoto se non ha nome
      * @param callable(string): bool $exists vero se il file c'è
      * @return list<array{id: int, action: string, path: string}>
@@ -93,6 +98,11 @@ final class ProductImageQueueMigration implements ModuleMigration
             $id = (int) ($row['id'] ?? 0);
 
             if ($id <= 0) {
+                continue;
+            }
+
+            if ((int) ($row['media_id'] ?? 0) > 0) {
+                $plan[] = ['id' => $id, 'action' => self::READY, 'path' => ''];
                 continue;
             }
 

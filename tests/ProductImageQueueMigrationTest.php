@@ -42,6 +42,11 @@ check('il piano: una foto si consegna, un video è pronto, un file sparito no', 
         && $piano[0]['path'] === '/sito/assets/upload/app/gestionale/prodotti/maglia.jpg';
 });
 
+check('una foto già nella libreria media è pronta, senza guardare il file', fn () =>
+    Migration::plan([['id' => 9, 'file' => '', 'media_id' => 40]], $percorso, $esiste)
+        === [['id' => 9, 'action' => Migration::READY, 'path' => '']]
+);
+
 check('niente righe, niente piano', fn () => Migration::plan([], $percorso, $esiste) === []);
 
 check('una riga cambia stato solo dopo la consegna alla coda del core', function () use ($righe, $percorso, $esiste) {

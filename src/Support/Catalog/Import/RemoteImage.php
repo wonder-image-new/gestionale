@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Catalog\Import;
 
 use RuntimeException;
+use Wonder\Plugin\Gestionale\Migrations\CatalogMediaMigration;
 use Throwable;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Support\Catalog\ImageSizes;
@@ -107,11 +108,18 @@ final class RemoteImage
             throw new RuntimeException(UserError::make('import.image_save')->getMessage());
         }
 
-        // Il file non è passato da `uploadFiles()`: le misure si consegnano
-        // qui alla coda del core (senza coda si generano subito).
-        ImageSizes::prepare($dir.$name);
+        $id = (int) $result->insert_id;
 
-        return (int) $result->insert_id;
+        // La foto entra subito nella libreria (con le misure): la copia
+        // fatta, il file scaricato non serve più.
+        if ((int) (CatalogMediaMigration::adopt(ProductImage::class, [$id])['migrated'] ?? 0) > 0) {
+            @unlink($dir.$name);
+        } else {
+            // Senza libreria resta un file di prima: le misure si consegnano qui.
+            ImageSizes::prepare($dir.$name);
+        }
+
+        return $id;
     }
 
     /** @return list<array<string, mixed>> */

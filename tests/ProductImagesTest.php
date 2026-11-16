@@ -5,6 +5,8 @@ declare(strict_types=1);
 require __DIR__ . '/../vendor/autoload.php';
 require __DIR__ . '/harness.php';
 
+use Wonder\App\Media\MediaLibrary;
+use Wonder\App\Media\MemoryMediaStore;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductImage;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductModel;
 use Wonder\Plugin\Gestionale\Models\Catalog\ProductVariant;
@@ -145,13 +147,14 @@ check('il nome del file dice di chi è la foto: modello, variante, opzione', fun
         && ProductImages::filePrefix('') === '';
 });
 
-check('il campo e la scheda usano il prefisso nel nome del file', function () {
+check('il campo e la scheda usano il prefisso nel nome del media', function () {
     $root = dirname(__DIR__);
     $model = (string) file_get_contents($root.'/src/Models/Catalog/ProductImage.php');
     $resource = (string) file_get_contents($root.'/src/Resources/Catalog/ProductModelResource.php');
 
     return str_contains($model, "->name('{file_prefix}{rand}')")
-        && str_contains($resource, "'file_prefix' => ProductImages::filePrefix(");
+        && str_contains($resource, "->mediaSlug('{file_prefix}')")
+        && str_contains($resource, "'file_prefix' => rtrim(ProductImages::filePrefix(");
 });
 
 check('ogni foto ha un tipo, di serie packshot', function () use ($colonne) {
@@ -180,5 +183,69 @@ check('si tengono solo le foto del tipo chiesto, nel loro ordine', function () {
     return array_column(ProductImages::ofType($foto, 'lifestyle'), 'id') === [1, 3]
         && array_column(ProductImages::ofType($foto, 'packshot'), 'id') === [2];
 });
+
+check('le foto nella libreria: media_id, utilizzo sull\'articolo, migrazione dalla cartella di prima', function () use ($colonne) {
+    $definizione = ProductImage::legacyMediaDefinitions()[0] ?? [];
+
+    return isset($colonne(ProductImage::class)['media_id'])
+        && $definizione['field'] === 'file'
+        && $definizione['columns'] === ['image' => 'media_id', 'video' => 'media_id']
+        && $definizione['legacy'] === 'app/gestionale/prodotti'
+        && $definizione['owner'] === ['table' => 'gst_product_models', 'key' => 'product_model_id', 'column' => 'images'];
+});
+
+MediaLibrary::useStore(new MemoryMediaStore([
+    ['id' => 40, 'type' => 'image', 'slug' => 'maglietta', 'name' => 'Maglietta', 'file' => 'maglietta.jpg'],
+    ['id' => 41, 'type' => 'video', 'slug' => 'giro', 'name' => 'Giro', 'file' => 'giro.mp4'],
+]));
+
+check('una foto con il media prende file e cartella dalla libreria', fn () =>
+    ProductImages::url(['media_id' => 40, 'file' => '']) === '/assets/upload/images/maglietta.jpg'
+    && ProductImages::path(['media_id' => 41], '/sito') === '/sito/assets/upload/videos/giro.mp4'
+    && ProductImages::isShowable(['media_id' => 40])
+    && !ProductImages::isShowable(['media_id' => 41])
+);
+
+check('senza media (o con un media sparito) vale il file di prima, o niente', fn () =>
+    ProductImages::url(['media_id' => 0, 'file' => '["vecchia.jpg"]']) === '/assets/upload/app/gestionale/prodotti/vecchia.jpg'
+    && ProductImages::url(['media_id' => 99, 'file' => '["vecchia.jpg"]']) === ''
+);
+
+check('hydrate legge i media in una volta e li scrive nelle righe', function () {
+    $righe = ProductImages::hydrate([['id' => 1, 'media_id' => 40], ['id' => 2, 'file' => '["a.jpg"]']]);
+
+    return $righe[0]['media_file'] === 'maglietta.jpg' && $righe[0]['media_folder'] === 'images'
+        && !isset($righe[1]['media_file'])
+        && ProductImages::url($righe[0]) === '/assets/upload/images/maglietta.jpg';
+});
+
+check('relativeName: cartella degli upload più file, per libreria e foto di prima', fn () =>
+    ProductImages::relativeName(['media_id' => 40]) === 'images/maglietta.jpg'
+    && ProductImages::relativeName(['media_id' => 0, 'file' => '["vecchia.jpg"]']) === 'app/gestionale/prodotti/vecchia.jpg'
+    && ProductImages::relativeName(['media_id' => 99]) === ''
+);
+
+check('reconcile: tiene, riordina, crea e toglie secondo i media scelti', function () {
+    $righe = [
+        ['id' => 1, 'media_id' => 40, 'position' => 1],
+        ['id' => 2, 'media_id' => 41, 'position' => 2],
+        ['id' => 3, 'media_id' => 42, 'position' => 3],
+        ['id' => 4, 'media_id' => 0, 'file' => '["vecchia.jpg"]', 'position' => 4],
+        ['id' => 5, 'media_id' => 40, 'position' => 5],
+    ];
+    $piano = ProductImages::reconcile($righe, [41, 40, 50, 50]);
+
+    return $piano['update'] === [2 => 1, 1 => 2]
+        && $piano['create'] === [['media_id' => 50, 'position' => 3]]
+        // La 3 non è più scelta, la 5 è un doppione; la foto di prima resta.
+        && $piano['delete'] === [5, 3];
+});
+
+check('reconcile: rispetta il massimo e svuota un\'area', fn () =>
+    ProductImages::reconcile([], [1, 2, 3], 2)['create'] === [['media_id' => 1, 'position' => 1], ['media_id' => 2, 'position' => 2]]
+    && ProductImages::reconcile([['id' => 9, 'media_id' => 7, 'position' => 1]], [])['delete'] === [9]
+);
+
+MediaLibrary::useStore(null);
 
 summary();
