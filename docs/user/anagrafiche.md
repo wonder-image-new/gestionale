@@ -231,6 +231,52 @@ sia cliente o solo referente. Titoli, *Aggiungi persona*, *Scheda persona* e
 il nome del file esportato seguono l'elenco (*Clienti* o *Referenti* negli
 altri due modi).
 
+## Caricare persone e aziende da un file
+
+Se arrivi da un altro programma non serve ribattere la rubrica: la carichi
+da un foglio Excel o CSV. Il modo più semplice è scaricare l'elenco,
+sistemarlo e ricaricarlo così com'è: le colonne sono le stesse.
+
+Dove si trova:
+
+- sull'elenco delle **persone**, la scheda **Importa** del bottone **File**
+  carica le persone e il bottone **Importa indirizzi** i loro indirizzi di
+  consegna;
+- sull'elenco delle **aziende**, **File** → **Importa** carica le aziende,
+  **Importa indirizzi** i loro indirizzi e **Importa referenti** i legami
+  tra aziende e persone.
+
+Persone e indirizzi li carica chi può modificare i clienti, aziende e
+referenti chi può modificare le aziende: gli altri non vedono i bottoni.
+Senza aziende nel gestionale ci sono solo persone e i loro indirizzi.
+
+I passi sono quelli del caricamento del catalogo: scegli il file (o scarica
+il file di esempio), controlla le colonne, guarda l'anteprima e carica.
+
+Come si riconosce una scheda che c'è già, in quest'ordine: **ID** (la prima
+colonna del file esportato), **codice**, poi **partita IVA** per le aziende
+oppure **codice fiscale** ed **email** per le persone. Se la trova la
+aggiorna, altrimenti ne crea una nuova. Se un codice fiscale o un'email è già
+di un'altra scheda la riga si ferma e l'anteprima ti dice di chi è.
+
+Qualche regola:
+
+- una **cella vuota** non cancella niente: cambiano solo i dati che scrivi;
+- **Listino**, **Metodo di pagamento**, **Condizione di pagamento** e
+  **Commerciale** si scrivono col nome o con il numero; «Nessuno» li toglie.
+  Un nome che non esiste ferma la riga. Le colonne ci sono solo se le vedi
+  anche nella scheda;
+- un **commerciale** che carica non sceglie il commerciale: le schede nuove
+  nascono sue, quelle che aggiorna restano a chi le aveva. Riconosce solo le
+  schede che già vede;
+- negli **indirizzi** ogni riga è un indirizzo della persona o dell'azienda
+  indicata; con «Predefinito» a sì gli altri non lo sono più;
+- nei **referenti** ogni riga lega un'azienda a una persona; l'accesso al
+  sito per conto dell'azienda è *Nessuno* se non lo scrivi.
+
+Hai sbagliato file? Alla fine c'è **Annulla il caricamento**: le schede
+create spariscono e quelle modificate tornano com'erano.
+
 ## La scheda del cliente
 
 In alto le **statistiche** e, a destra, i **dati di fatturazione** (codice

@@ -69,6 +69,10 @@ return [
             \Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout::KEY => \Wonder\Plugin\Gestionale\Support\Pricing\Import\PriceListLayout::class,
         ],
     ],
+    // Colonne e regole del gestionale nei tracciati della rubrica di customer-account.
+    'contacts_import' => [
+        'extensions' => [\Wonder\Plugin\Gestionale\Support\Contacts\GestionaleContactsImport::class],
+    ],
     // Canali dei listini oltre a PriceListChannels::CORE: chiave => etichetta, false toglie (#162).
     'price_lists' => [
         'channels' => [],

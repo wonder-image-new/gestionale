@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 
+use Wonder\Plugin\CustomerAccount\Support\Import\{AddressLayout, ImportLinks, PeopleLayout};
 use Wonder\App\ResourceSchema\ApiSchema;
 use Wonder\Backend\Support\QuickCreateStore;
 use Wonder\App\ResourceSchema\FormField;
@@ -894,6 +895,18 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         ];
     }
 
+    /** Il tracciato del pulsante «Importa» dell'elenco. */
+    public static function importLayoutKey(): string
+    {
+        return PeopleLayout::KEY;
+    }
+
+    /** Tracciati senza un elenco proprio: bottoni «Importa ...» accanto a «File». */
+    public static function importExtraLayouts(): array
+    {
+        return [AddressLayout::KEY];
+    }
+
     public static function tableLayoutSchema(): TableLayoutSchema
     {
         $contactTable = static::$model::$table;
@@ -917,7 +930,8 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             $layout = $layout->select(implode(",\n             ", $select));
         }
 
-        $layout = $layout->download($formats)->downloadAsText();
+        $layout = $layout->download($formats)->downloadAsText()->importLayout(static::importLayoutKey())
+            ->buttonsCustom(static::isReadonly() ? [] : ImportLinks::buttons(static::importExtraLayouts()));
 
         if ($signals !== []) {
             $incomplete = RowSignals::whereAny($signals, $contactTable);
