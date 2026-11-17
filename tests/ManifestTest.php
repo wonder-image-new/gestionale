@@ -26,18 +26,11 @@ check('manifest valido per il core', function () use ($manifest) {
 check('slug, namespace e versione', fn () =>
     $manifest->slug() === 'gestionale'
     && $manifest->namespace() === 'Wonder\\Plugin\\Gestionale\\'
-    && $manifest->version() === '0.1.0'
+    && $manifest->version() === '1.0.0'
 );
 
-// DA CONFERMARE AL RILASCIO DEL CORE: `2.4.0-beta.8` è la versione attesa di
-// wonder-image/app con la coda dei ridimensionamenti e il campo media
-// (app#214), non ancora rilasciata. Se il numero sarà un altro cambia qui e
-// in `module.json`; nello stesso momento va alzato `require` in
-// `composer.json` (con il lock) e la riga del vincolo in
-// `docs/dev/concetti/mcp.md`, che restano a beta.6 finché il core non esce:
-// alzarli prima rompe `composer install` contro il checkout accanto.
-check('richiede il core 2.4.0-beta.8 e PHP 8.2', fn () =>
-    ($manifest->frameworkCompatibility()['wonder-app'] ?? '') === '^2.4.0-beta.8'
+check('richiede il core 2.4.0 e PHP 8.2', fn () =>
+    ($manifest->frameworkCompatibility()['wonder-app'] ?? '') === '^2.4.0'
     && ($manifest->frameworkCompatibility()['php'] ?? '') === '^8.2'
 );
 

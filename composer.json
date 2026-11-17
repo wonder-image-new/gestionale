@@ -5,8 +5,8 @@
     "license": "proprietary",
     "require": {
         "php": "^8.2",
-        "wonder-image/app": "^2.4.0-beta.6 || dev-main",
-        "wonder-image/customer-account": "@dev"
+        "wonder-image/app": "^2.4.0 || dev-main",
+        "wonder-image/customer-account": "^1.0 || dev-main"
     },
     "repositories": [
         {

@@ -3,7 +3,7 @@
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il
 versionamento semantico.
 
-## 0.1.0 — non rilasciata
+## 1.0.0 — 2026-11-17
 
 ### Cambiato
 - Catalogo: le foto del colore (testata del gruppo) e le foto dell'opzione
