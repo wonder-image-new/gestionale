@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d8f58e0c0b1a661056e3aef14597dff9",
+    "content-hash": "81779ffcc2d4baf404723eb5a330d51d",
     "packages": [
         {
             "name": "chillerlan/php-qrcode",
@@ -3277,11 +3277,11 @@
         },
         {
             "name": "wonder-image/app",
-            "version": "2.4.0-beta.6",
+            "version": "2.4.0",
             "dist": {
                 "type": "path",
                 "url": "../app",
-                "reference": "4d358230484f7f8ec5b16acf0ca5479747a3d2ae"
+                "reference": "112acca69aafdef15e7c8e3ec0dd2583f6d8cbe5"
             },
             "require": {
                 "chillerlan/php-qrcode": "^5.0",
@@ -3305,7 +3305,7 @@
             "type": "library",
             "extra": {
                 "wonder": {
-                    "lib": "^2.1.2-alpha.31"
+                    "lib": "^2.1.2-alpha.42"
                 }
             },
             "autoload": {
@@ -3323,7 +3323,7 @@
                 ]
             },
             "license": [
-                "MIT"
+                "proprietary"
             ],
             "authors": [
                 {
@@ -3349,11 +3349,11 @@
             "dist": {
                 "type": "path",
                 "url": "../customer-account",
-                "reference": "5bddea770fb8bf942e5cff73db22863c19fcb748"
+                "reference": "b371f3d95047e971baf412c3f18280e2bde991e6"
             },
             "require": {
                 "php": "^8.2",
-                "wonder-image/app": "^2.4.0-beta.3 || dev-main"
+                "wonder-image/app": "^2.4.0 || dev-main"
             },
             "type": "library",
             "extra": {
@@ -3367,7 +3367,7 @@
                 }
             },
             "license": [
-                "MIT"
+                "proprietary"
             ],
             "description": "Account cliente persistente per wonder-image/app: schede contatto, collegamento utente, fatturazione e indirizzi di spedizione.",
             "transport-options": {
@@ -3392,5 +3392,5 @@
     "platform-overrides": {
         "php": "8.2.0"
     },
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.11.0"
 }
