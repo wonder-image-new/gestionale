@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Contacts;
 
+use Wonder\Plugin\CustomerAccount\Support\Import\{AddressLayout, CompanyLayout, RelationLayout};
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\TableLayoutSchema;
 use Wonder\Elements\Components\Card;
@@ -373,6 +374,17 @@ class CompanyResource extends CustomerResource
     protected static function listCondition(): string
     {
         return '1 = 1';
+    }
+
+    /** Le aziende (e i fornitori) si importano col tracciato delle aziende. */
+    public static function importLayoutKey(): string
+    {
+        return CompanyLayout::KEY;
+    }
+
+    public static function importExtraLayouts(): array
+    {
+        return [AddressLayout::KEY, RelationLayout::KEY];
     }
 
     public static function tableLayoutSchema(): TableLayoutSchema

@@ -55,6 +55,14 @@ versionamento semantico.
   ruolo `warehouse` e alle sedi dell'azienda dal pannello ordine.
 
 ### Aggiunto
+- Anagrafiche: importazione di persone, aziende, indirizzi e referenti da
+  Excel o CSV (#119) con i tracciati di customer-account, estesi da
+  `Support\Contacts\GestionaleContactsImport` (listino, metodo e condizione
+  di pagamento, commerciale; permessi, Model e visibilità del gestionale).
+  «Importa» nel bottone «File» di persone e aziende, più «Importa indirizzi»
+  e «Importa referenti» (`importExtraLayouts()`); la freccia accanto al
+  titolo del caricamento porta agli elenchi del gestionale (`backUrl()`). Test
+  `tests/ContactImportTest.php`.
 - Ordini: *Conferma*, *Segna evaso* e *Annulla* anche nel menu dei tre puntini
   della riga, solo quando valgono per lo stato dell'ordine
   (`BulkAction::row()` con `OrderActions::available()`).

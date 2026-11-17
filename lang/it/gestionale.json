@@ -81,6 +81,21 @@
         "groups": {
             "title": "Gruppo",
             "tooltip": "L'azienda a capo del gruppo di cui fa parte questa: un livello solo, una capogruppo non ha a sua volta una capogruppo."
+        },
+        "import": {
+            "none": "Nessuno",
+            "columns": {
+                "price_list": "Listino",
+                "payment_method": "Metodo di pagamento",
+                "payment_term": "Condizione di pagamento",
+                "agent": "Commerciale"
+            },
+            "fields": {
+                "price_list": "Nome o ID di un listino; «Nessuno» per i prezzi di catalogo",
+                "payment_method": "Nome o ID di un metodo attivo in ufficio; «Nessuno» per toglierlo",
+                "payment_term": "Nome o ID di una condizione attiva; «Nessuno» per toglierla",
+                "agent": "Nome o ID del commerciale; «Nessuno» per toglierlo"
+            }
         }
     },
     "errors": {
