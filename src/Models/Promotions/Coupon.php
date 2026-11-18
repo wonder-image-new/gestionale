@@ -74,6 +74,8 @@ final class Coupon extends Model
             Column::key('duration')->enum(static::DURATIONS)->default('once'),
             Column::key('duration_months')->int()->default(0),
             Column::key('active')->enum(['true', 'false'])->default('true'),
+            // #77: il commerciale del codice; l'ordine che lo usa va a lui.
+            Column::key('agent_id')->int()->default(0),
             Column::key('note')->type('TEXT'),
         ];
     }
@@ -102,6 +104,7 @@ final class Coupon extends Model
             Field::key('duration')->text()->sanitize(false),
             Field::key('duration_months')->number()->decimals(0),
             Field::key('active')->text()->sanitize(false),
+            Field::key('agent_id')->number()->decimals(0),
             Field::key('note')->text(),
         ];
     }

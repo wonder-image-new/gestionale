@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderEditor;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentNetwork;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentPriceLists;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentUsers;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
@@ -81,6 +82,8 @@ final class SalesAgentResource extends GestionaleResource
             'customers' => 'Clienti',
             'price_lists' => 'Listini',
             'default_price_list_id' => 'Listino predefinito',
+            'parent_id' => 'Sopra di lui',
+            'network_edit' => 'Può modificare la sua rete',
         ];
     }
 
@@ -111,6 +114,13 @@ final class SalesAgentResource extends GestionaleResource
                 ->value('true')
                 ->label('Stato'),
             FormField::key('note')->textarea()->label('Note'),
+            FormField::key('parent_id')
+                ->select(['' => 'Nessuno'] + static::parentOptions())
+                ->label('Sopra di lui'),
+            FormField::key('network_edit')
+                ->select(['default' => 'Come da impostazioni', 'true' => 'Sì', 'false' => 'No'])
+                ->value('default')
+                ->label('Può modificare la sua rete'),
             FormField::key('price_lists')->checkbox()->options(static::priceListOptions())->value([])->label(''),
             FormField::key('default_price_list_id')
                 ->select(['' => 'Nessuno'] + static::priceListOptions())
@@ -145,6 +155,15 @@ final class SalesAgentResource extends GestionaleResource
                     static::getInput('active')->columnSpan(static::currentId() === null ? 12 : 6),
                     static::getInput('contact_id')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
+                ...(SalesAgentNetwork::enabled()
+                    ? [(new Card)->components([
+                        SectionTitle::make('Rete')
+                            ->tooltip('Il commerciale sopra di lui vede i suoi clienti e le sue vendite. «Può modificare la sua rete»: se può cambiare i dati dei commerciali sotto di lui; «Come da impostazioni» segue la scelta delle Impostazioni.')
+                            ->columnSpan(12),
+                        static::getInput('parent_id')->columnSpan(6),
+                        static::getInput('network_edit')->columnSpan(6),
+                    ])->columns(12)->columnSpan(12)]
+                    : []),
                 ...(SalesAgentPriceLists::enabled()
                     ? [(new Card)->components([
                         SectionTitle::make('Listini')
@@ -277,6 +296,7 @@ final class SalesAgentResource extends GestionaleResource
         }
 
         $values = static::takePriceLists($values, (int) ($oldValues['id'] ?? 0));
+        $values = static::takeNetwork($values, (int) ($oldValues['id'] ?? 0));
 
         // Il nuovo stato vale subito per la visibilità.
         SalesAgents::forget();
@@ -310,6 +330,55 @@ final class SalesAgentResource extends GestionaleResource
         unset($values['price_lists'], $values['default_price_list_id']);
 
         return $values;
+    }
+
+    /**
+     * Rete: niente cerchi sopra di lui, una scelta nota per la modifica. Con
+     * la rete spenta i valori salvati restano.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    public static function takeNetwork(array $values, int $agentId = 0): array
+    {
+        if (!SalesAgentNetwork::enabled()) {
+            unset($values['parent_id'], $values['network_edit']);
+
+            return $values;
+        }
+
+        if (array_key_exists('parent_id', $values)) {
+            $parent = max(0, (int) $values['parent_id']);
+            if (!SalesAgentNetwork::validParent(SalesAgentNetwork::parents(), $agentId, $parent)) {
+                throw UserError::make('sales_agent.invalid_parent');
+            }
+            $values['parent_id'] = $parent;
+        }
+
+        if (array_key_exists('network_edit', $values) && !in_array((string) $values['network_edit'], ['default', 'true', 'false'], true)) {
+            $values['network_edit'] = 'default';
+        }
+
+        return $values;
+    }
+
+    /** I commerciali che possono stare sopra quello aperto: non lui, non la sua rete sotto. @return array<int, string> */
+    public static function parentOptions(): array
+    {
+        $id = (int) (static::currentId() ?? 0);
+        $current = 0;
+        if ($id > 0) {
+            $current = (int) (SalesAgentNetwork::parents()[$id] ?? 0);
+        }
+        $out = [];
+
+        foreach (SalesAgents::options(true, $current) as $option => $label) {
+            if (SalesAgentNetwork::validParent(SalesAgentNetwork::parents(), $id, (int) $option)) {
+                $out[$option] = $label;
+            }
+        }
+
+        return $out;
     }
 
     /** I listini da scegliere: tutti, anche quelli non attivi (si vedono come tali). */

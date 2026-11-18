@@ -8,6 +8,7 @@ use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\DiscountLimit;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentNetwork;
 
 /**
  * L'invio della pagina *Nuovo ordine* (G9 §2.2), senza HTML: legge il POST,
@@ -47,6 +48,12 @@ final class OfficeOrderForm
         $notify = (string) ($post['notify'] ?? '') === 'true';
 
         try {
+            // Rete (#77): un documento della rete sotto si modifica solo se permesso.
+            if ($id > 0) {
+                $old = Order::findById($id);
+                SalesAgentNetwork::guard(is_array($old) ? $old : null);
+            }
+
             if ($intent === 'delete') {
                 $quote ? Quotes::delete($id) : OfficeOrders::delete($id);
                 $result['deleted'] = true;

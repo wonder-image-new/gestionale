@@ -41,6 +41,8 @@ final class SalesAgent extends Model
             Column::key('default_price_list_id')->int()->default(0),
             Column::key('active')->enum(['true', 'false'])->default('true'),
             Column::key('note')->type('TEXT'),
+            // Rete: modifica i dati della rete sotto; `default` segue le impostazioni.
+            Column::key('network_edit')->enum(['default', 'true', 'false'])->default('default'),
         ];
     }
 
@@ -63,6 +65,7 @@ final class SalesAgent extends Model
             Field::key('default_price_list_id')->number()->decimals(0),
             Field::key('active')->text()->sanitize(false),
             Field::key('note')->text(),
+            Field::key('network_edit')->text()->sanitize(false),
         ];
     }
 }

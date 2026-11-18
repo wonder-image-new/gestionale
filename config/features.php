@@ -95,7 +95,6 @@ return [
         'description' => 'Commerciali sotto altri commerciali, su quanti livelli servono: ognuno vede anche i clienti e i documenti della sua rete.',
         'area' => 'Vendite',
         'requires' => ['sales_agents'],
-        'created' => false,
     ],
     'sales_agent_commissions' => [
         'name' => 'Provvigioni',
@@ -106,7 +105,7 @@ return [
     ],
     'sales_agent_network_commissions' => [
         'name' => 'Provvigioni di rete',
-        'description' => 'Chi sta sopra prende una provvigione sulle vendite della sua rete, per livello o per differenza.',
+        'description' => 'Chi sta sopra prende una percentuale sul venduto della sua rete, livello per livello, con una base che vale per tutti.',
         'area' => 'Vendite',
         'requires' => ['sales_agent_network', 'sales_agent_commissions'],
         'created' => false,
@@ -128,7 +127,6 @@ return [
         'description' => 'Ogni commerciale ha i suoi codici sconto: un ordine sul sito con il suo codice gli viene attribuito.',
         'area' => 'Vendite',
         'requires' => ['sales_agents', 'coupons'],
-        'created' => false,
     ],
     'sales_agent_targets' => [
         'name' => 'Obiettivi dei commerciali',

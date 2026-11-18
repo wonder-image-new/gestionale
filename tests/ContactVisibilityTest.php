@@ -77,7 +77,7 @@ check('i brand: il commerciale vede quelli legati (legame aperto) a un\'azienda 
     $regola = (string) RowVisibility::conditionFor(CompanyBrand::$table, $commerciale);
 
     return str_contains($regola, 'company_brand_links') && str_contains($regola, '`ended_at` IS NULL')
-        && str_contains($regola, '`agent_id` = 5')
+        && str_contains($regola, '`agent_id` IN (5)')
         && RowVisibility::conditionFor(CompanyBrand::$table, $ufficio) === null;
 });
 

@@ -7,6 +7,7 @@ use Wonder\App\Support\SyncSchema;
 use Wonder\Data\UploadSchema as Field;
 use Wonder\Plugin\Gestionale\Extensions\SettingsSections;
 use Wonder\Plugin\Gestionale\Support\RequestMemo;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentSettings;
 use Wonder\Sql\TableSchema as Column;
 
 /**
@@ -87,7 +88,7 @@ final class Setting extends Model
             Column::key('label_format')->length(50),
         ];
 
-        foreach (SettingsSections::all() as $section) {
+        foreach ([new SalesAgentSettings, ...SettingsSections::all()] as $section) {
             array_push($columns, ...$section->columns());
         }
 
@@ -127,7 +128,7 @@ final class Setting extends Model
             Field::key('label_format')->text()->sanitize(false),
         ];
 
-        foreach (SettingsSections::all() as $section) {
+        foreach ([new SalesAgentSettings, ...SettingsSections::all()] as $section) {
             array_push($fields, ...$section->data());
         }
 

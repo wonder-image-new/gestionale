@@ -112,6 +112,7 @@ final class SalesAgents
     public static function forget(): void
     {
         self::$ids = [];
+        SalesAgentNetwork::forget();
     }
 
     /** Registra le regole di visibilità (dal file di boot del modulo). */
@@ -126,6 +127,13 @@ final class SalesAgents
         }
 
         RowVisibility::rule(Payment::$table, static fn (object $user): ?string => self::paymentsRule($user));
+        SalesAgentCoupons::register();
+    }
+
+    /** Gli id che il commerciale vede, per `IN (...)`: lui e la sua rete. */
+    public static function scope(int $id): string
+    {
+        return implode(',', SalesAgentNetwork::team($id));
     }
 
     public static function contactsRule(object $user): ?string
@@ -139,7 +147,7 @@ final class SalesAgents
             return RowVisibility::none();
         }
 
-        return '`agent_id` = '.$id
+        return '`agent_id` IN ('.self::scope($id).')'
             .' OR `id` IN (SELECT `person_id` FROM `'.ContactRelation::$table.'` WHERE `company_id` IN ('.self::companiesOf($id).'))';
     }
 
@@ -151,7 +159,7 @@ final class SalesAgents
 
         $id = self::idOf($user);
 
-        return $id > 0 ? '`agent_id` = '.$id : RowVisibility::none();
+        return $id > 0 ? '`agent_id` IN ('.self::scope($id).')' : RowVisibility::none();
     }
 
     /**
@@ -182,8 +190,8 @@ final class SalesAgents
             return RowVisibility::none();
         }
 
-        return '`agent_id` = '.$id
-            .' OR `customer_id` IN (SELECT `id` FROM `'.Contact::$table.'` WHERE `agent_id` = '.$id.')'
+        return '`agent_id` IN ('.self::scope($id).')'
+            .' OR `customer_id` IN (SELECT `id` FROM `'.Contact::$table.'` WHERE `agent_id` IN ('.self::scope($id).'))'
             .' OR `company_id` IN ('.self::companiesOf($id).')';
     }
 
@@ -199,13 +207,13 @@ final class SalesAgents
 
         return '`order_id` IN (SELECT `id` FROM `'.Order::$table.'` WHERE '.$documents.')'
             .' OR `subscription_id` IN (SELECT `id` FROM `'.Subscription::$table.'` WHERE '.$documents.')'
-            .' OR `customer_id` IN (SELECT `id` FROM `'.Contact::$table.'` WHERE `agent_id` = '.$id.')'
+            .' OR `customer_id` IN (SELECT `id` FROM `'.Contact::$table.'` WHERE `agent_id` IN ('.self::scope($id).'))'
             .' OR `company_id` IN ('.self::companiesOf($id).')';
     }
 
     private static function companiesOf(int $id): string
     {
-        return 'SELECT `id` FROM `'.Company::$table.'` WHERE `agent_id` = '.$id;
+        return 'SELECT `id` FROM `'.Company::$table.'` WHERE `agent_id` IN ('.self::scope($id).')';
     }
 
     /**

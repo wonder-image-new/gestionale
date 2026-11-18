@@ -23,6 +23,7 @@ use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Labels\LabelFormats;
 use Wonder\Plugin\Gestionale\Support\Mail\Recipients;
 use Wonder\Plugin\Gestionale\Support\Numbers;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentSettings;
 
 /**
  * "Impostazioni" tecniche in Set Up: una riga sola, di `admin`.
@@ -88,7 +89,7 @@ final class SettingResource extends SingletonResource
             'label_format' => 'Formato delle etichette',
         ];
 
-        foreach (SettingsSections::all() as $section) {
+        foreach (static::sections() as $section) {
             $labels += $section->labels();
         }
 
@@ -163,7 +164,7 @@ final class SettingResource extends SingletonResource
                 : []),
         ];
 
-        foreach (SettingsSections::all() as $section) {
+        foreach (static::sections() as $section) {
             array_push($fields, ...$section->fields());
         }
 
@@ -173,7 +174,11 @@ final class SettingResource extends SingletonResource
     public static function formLayoutSchema(): ?Form
     {
         $input = static fn (string $key): object => static::getInput($key);
+        $agents = new SalesAgentSettings;
         $modules = array_map(static fn ($section) => $section->card($input), SettingsSections::all());
+        if ($agents->shown()) {
+            array_unshift($modules, $agents->card($input));
+        }
 
         return (new Form)->components([
             (new Container)->components([
@@ -214,6 +219,12 @@ final class SettingResource extends SingletonResource
                 (new Card)->components(static::emailComponents())->columns(12)->columnSpan(12),
             ])->columns(12)->columnSpan(12),
         ]);
+    }
+
+    /** I riquadri in più: i commerciali (#77) e quelli dei moduli accesi. @return list<\Wonder\Plugin\Gestionale\Extensions\SettingsSection> */
+    private static function sections(): array
+    {
+        return [new SalesAgentSettings, ...SettingsSections::all()];
     }
 
     public static function pageSchema(): PageSchema
@@ -588,7 +599,7 @@ final class SettingResource extends SingletonResource
             $values[$key] = Recipients::join($parsed['valid']);
         }
 
-        foreach (SettingsSections::all() as $section) {
+        foreach (static::sections() as $section) {
             $values = $section->mutate($values);
         }
 
