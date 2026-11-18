@@ -14,6 +14,13 @@ if (class_exists(\Stripe\ApiRequestor::class)) {
     require_once __DIR__.'/supporto/StripeSenzaRete.php';
 }
 
+// Dal core 2.5.0 APP_ENV è obbligatorio: se il test non lo ha già, parte come
+// `production`, il valore che prima valeva per default.
+if (!isset($_ENV['APP_ENV']) && !isset($_SERVER['APP_ENV']) && getenv('APP_ENV') === false) {
+    $_ENV['APP_ENV'] = 'production';
+    putenv('APP_ENV=production');
+}
+
 $GLOBALS['__tests'] = 0;
 $GLOBALS['__failures'] = 0;
 
