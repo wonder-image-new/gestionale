@@ -16,7 +16,8 @@ use Wonder\Sql\TableSchema as Column;
  * scheda anagrafica, opzionale, per i dati delle provvigioni. `parent_id` è il
  * commerciale sopra di lui e lo usa la rete (`sales_agent_network`).
  * Commissione e sconto massimo sono i valori predefiniti delle funzionalità
- * che li usano: qui si salvano soltanto.
+ * che li usano: qui si salvano soltanto. `default_price_list_id` è il listino
+ * che va sui clienti nuovi del commerciale (`sales_agent_price_lists`).
  */
 final class SalesAgent extends Model
 {
@@ -37,6 +38,7 @@ final class SalesAgent extends Model
             Column::key('parent_id')->int()->default(0),
             Columns::decimal('commission_percent', '5,2'),
             Columns::decimal('max_discount_percent', '5,2'),
+            Column::key('default_price_list_id')->int()->default(0),
             Column::key('active')->enum(['true', 'false'])->default('true'),
             Column::key('note')->type('TEXT'),
         ];
@@ -58,6 +60,7 @@ final class SalesAgent extends Model
             Field::key('parent_id')->number()->decimals(0),
             Field::key('commission_percent')->number()->decimals(2),
             Field::key('max_discount_percent')->number()->decimals(2),
+            Field::key('default_price_list_id')->number()->decimals(0),
             Field::key('active')->text()->sanitize(false),
             Field::key('note')->text(),
         ];

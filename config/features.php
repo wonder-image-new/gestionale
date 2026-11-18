@@ -120,10 +120,9 @@ return [
     ],
     'sales_agent_price_lists' => [
         'name' => 'Listini dei commerciali',
-        'description' => 'L\'ufficio assegna i listini a ogni commerciale: lui li applica ai suoi clienti, senza cambiare i prezzi.',
+        'description' => 'L\'ufficio sceglie quali listini ogni commerciale può dare ai suoi clienti e quale va da solo sui clienti nuovi.',
         'area' => 'Vendite',
         'requires' => ['sales_agents', 'customer_price_lists'],
-        'created' => false,
     ],
     'sales_agent_coupons' => [
         'name' => 'Codici dei commerciali',
