@@ -49,7 +49,7 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Provvigioni | Vendite | Percentuale per commerciale con eccezioni per categoria e prodotto, maturata su pagato o evaso, stornata sui resi, con estratti conto ed export. | Commerciali |
 | Provvigioni di rete | Vendite | Chi sta sopra prende una provvigione sulle vendite della sua rete, per livello o per differenza. | Rete di commerciali, Provvigioni |
 | Sconto massimo dei commerciali | Vendite | Un ordine con uno sconto oltre il limite del commerciale resta da approvare finché l'ufficio non lo conferma. | Commerciali |
-| Listini dei commerciali | Vendite | L'ufficio assegna i listini a ogni commerciale: lui li applica ai suoi clienti, senza cambiare i prezzi. | Commerciali, Listini cliente |
+| [Listini dei commerciali](commerciali.md#listini) | Vendite | L'ufficio sceglie quali listini ogni commerciale può dare ai suoi clienti e quale va da solo sui clienti nuovi. I prezzi non cambiano: il listino resta sul cliente. | Commerciali, Listini cliente |
 | Codici dei commerciali | Vendite | Ogni commerciale ha i suoi codici sconto: un ordine sul sito con il suo codice gli viene attribuito. | Commerciali, Coupon |
 | Obiettivi dei commerciali | Vendite | Obiettivi mensili e annuali per commerciale, con l'avanzamento e le statistiche del venduto. | Commerciali |
 | Prodotto | Catalogo | Prodotti singoli nel catalogo. Spento, in Catalogo → Prodotti restano multiprodotti e abbonamenti. | — |

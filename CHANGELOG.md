@@ -3,6 +3,17 @@
 Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il
 versionamento semantico.
 
+## Non rilasciato
+
+### Aggiunto
+- Commerciali: listini dei commerciali (funzionalità
+  `sales_agent_price_lists`, #77). Nella scheda del commerciale l'ufficio
+  spunta i listini che può dare ai suoi clienti (anche nessuno: solo
+  catalogo) e il predefinito per i clienti nuovi. Il commerciale sceglie solo
+  fra i suoi listini attivi in scheda, API e importazione; il listino già sul
+  cliente resta. Nuova tabella `gst_sales_agent_price_lists` e colonna
+  `default_price_list_id` su `gst_sales_agents`: serve `php forge update`.
+
 ## 1.0.0 — 2026-11-17
 
 ### Cambiato

@@ -19,7 +19,11 @@ contatti»). Il gestionale non li sostituisce: li estende con
 | `columns()` / `values()` | Listino, metodo e condizione di pagamento (questa solo con più di una attiva) e commerciale, solo dove il form della Resource li mostra. Valori per nome o ID, «Nessuno» li toglie, celle vuote non scrivono, un valore sconosciuto blocca la riga. |
 
 Il commerciale che carica non sceglie il commerciale: in creazione la scheda
-prende il suo `agent_id`, in aggiornamento resta quello salvato. Le scelte
+prende il suo `agent_id`, in aggiornamento resta quello salvato. Con
+`sales_agent_price_lists` la colonna Listino accetta solo i suoi listini (più
+quello già sulla scheda) e una scheda nuova senza listino prende il suo
+predefinito (`priceListChoices()` e `newPriceList()`, protetti come
+`options()`). Le scelte
 vengono da `options()` (protetto: i test lo sostituiscono con valori fissi).
 
 ## Dove si clicca
