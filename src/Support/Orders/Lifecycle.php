@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Orders;
 
+use Wonder\Plugin\Gestionale\Support\SalesAgents\Commissions;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
@@ -159,6 +160,8 @@ final class Lifecycle
             }
         }
 
+        Commissions::refresh($orderId);
+
         return $result;
     }
 
@@ -287,6 +290,8 @@ final class Lifecycle
                 OrderNotifier::send('merchant_cancelled', $orderId);
             }
         }
+
+        Commissions::refresh($orderId);
 
         return $result;
     }
@@ -634,6 +639,8 @@ final class Lifecycle
             // apre la sua, e annidata diventa un savepoint.
             $result['status'] = self::refresh($orderId);
         }
+
+        Commissions::refresh($orderId);
 
         return $result;
     }

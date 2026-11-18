@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Returns;
 
+use Wonder\Plugin\Gestionale\Support\SalesAgents\Commissions;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
@@ -215,7 +216,7 @@ final class Returns
     /** Chiude un reso ricevuto: il commerciante ha finito con quella pratica. */
     public static function complete(int $returnId, array $options = []): void
     {
-        Transaction::run(static function () use ($returnId, $options): void {
+        $orderId = Transaction::run(static function () use ($returnId, $options): int {
             $return = self::locked($returnId);
 
             if ((string) $return['status'] !== 'received') {
@@ -224,7 +225,12 @@ final class Returns
 
             SalesReturn::update(['status' => 'completed', 'completed_at' => date('Y-m-d H:i:s')], $returnId);
             self::log($returnId, 'received', 'completed', (string) ($options['source'] ?? 'user'), (int) ($options['user_id'] ?? 0));
+
+            return (int) $return['order_id'];
         });
+
+        // Il reso chiuso toglie la merce resa dalla provvigione.
+        Commissions::refresh($orderId);
     }
 
     /**

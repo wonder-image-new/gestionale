@@ -7,17 +7,23 @@ use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
+use Wonder\App\ResourceSchema\RepeaterColumn;
+use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\App\Support\Repeater;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\SalesAgents\SalesAgent;
+use Wonder\Plugin\Gestionale\Models\SalesAgents\SalesAgentCommissionRule;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderEditor;
@@ -125,7 +131,45 @@ final class SalesAgentResource extends GestionaleResource
             FormField::key('default_price_list_id')
                 ->select(['' => 'Nessuno'] + static::priceListOptions())
                 ->label('Listino predefinito'),
+            // Solo con la funzionalità: un form senza il campo svuoterebbe le regole.
+            ...(Gestionale::feature('sales_agent_commissions') ? [static::rulesField()] : []),
         ];
+    }
+
+    /** Le regole di provvigione per prodotto o categoria. */
+    private static function rulesField(): FormField
+    {
+        return FormField::key('commission_rules')
+            ->repeater([
+                RepeaterColumn::key('id')->hidden(),
+                RepeaterColumn::key('product_id')->select(['' => 'Nessuno'] + PriceListResource::productOptions())->label('Prodotto')->columnFill(),
+                RepeaterColumn::key('category_id')->select(static::categoryOptions())->label('Oppure categoria')->columnSpan(4),
+                RepeaterColumn::key('percent')->number()->decimal(2)->label('Provvigione %')->columnSpan(2),
+            ])
+            ->relation(
+                RepeaterRelation::make(SalesAgentCommissionRule::$table, 'sales_agent_id')
+                    ->model(SalesAgentCommissionRule::class)
+                    ->positionKey('position')
+                    ->softDelete(false)
+            )
+            ->nested()
+            ->repeaterSortable()
+            ->repeaterAddLabel('Aggiungi regola')
+            ->repeaterDeleteTitle('Elimina regola')
+            ->repeaterDeleteText('Confermi l\'eliminazione di questa regola?')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Elimina')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            ->label('');
+    }
+
+    /** @return array<string, string> */
+    public static function categoryOptions(): array
+    {
+        $options = CategoryTree::options(static::rowsOf(Category::class, [], 'position'));
+        unset($options['']);
+
+        return ['' => 'Nessuna'] + $options;
     }
 
     public static function formLayoutSchema(): ?Form
@@ -171,6 +215,14 @@ final class SalesAgentResource extends GestionaleResource
                             ->columnSpan(12),
                         static::getInput('price_lists')->columnSpan(12),
                         static::getInput('default_price_list_id')->columnSpan(6),
+                    ])->columns(12)->columnSpan(12)]
+                    : []),
+                ...(Gestionale::feature('sales_agent_commissions')
+                    ? [(new Card)->components([
+                        SectionTitle::make('Regole provvigione')
+                            ->tooltip('Una % diversa per un prodotto o per una categoria. Vale prima la regola del prodotto, poi quella della categoria (la prima in elenco se il prodotto ne ha più d\'una), poi la «Provvigione %» del commerciale.')
+                            ->columnSpan(12),
+                        static::getInput('commission_rules')->columnSpan(12),
                     ])->columns(12)->columnSpan(12)]
                     : []),
                 (new Card)->components([
@@ -295,6 +347,10 @@ final class SalesAgentResource extends GestionaleResource
             $values[$key] = $value ?? '0';
         }
 
+        if (Gestionale::feature('sales_agent_commissions')) {
+            static::checkRules(Repeater::rowsFromRequest('commission_rules', (array) $_POST));
+        }
+
         $values = static::takePriceLists($values, (int) ($oldValues['id'] ?? 0));
         $values = static::takeNetwork($values, (int) ($oldValues['id'] ?? 0));
 
@@ -405,6 +461,53 @@ final class SalesAgentResource extends GestionaleResource
         }
 
         return array_values((array) $value);
+    }
+
+    /**
+     * Ogni regola ha un prodotto o una categoria (non tutti e due) e una %
+     * fra 0 e 100. Le righe vuote si saltano.
+     *
+     * @param list<array<string, mixed>> $rows
+     */
+    public static function checkRules(array $rows): void
+    {
+        foreach (array_values($rows) as $i => $row) {
+            $product = (int) ($row['product_id'] ?? 0);
+            $category = (int) ($row['category_id'] ?? 0);
+            $percent = Numbers::fromForm($row['percent'] ?? null);
+
+            if ($product <= 0 && $category <= 0 && $percent === null) {
+                continue;
+            }
+
+            if (($product > 0) === ($category > 0) || $percent === null || (float) $percent < 0 || (float) $percent > 100) {
+                throw UserError::make('sales_agent.invalid_rule', ['row' => (string) ($i + 1)]);
+            }
+        }
+    }
+
+    public static function prepareRepeaterRows(
+        string $inputName,
+        array $rows,
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        if ($inputName !== 'commission_rules') {
+            return $rows;
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || ((int) ($row['product_id'] ?? 0) <= 0 && (int) ($row['category_id'] ?? 0) <= 0)) {
+                continue;
+            }
+            $row['product_id'] = (int) ($row['product_id'] ?? 0);
+            $row['category_id'] = $row['product_id'] > 0 ? 0 : (int) ($row['category_id'] ?? 0);
+            $row['percent'] = Numbers::fromForm($row['percent'] ?? null) ?? '0';
+            $out[] = $row;
+        }
+
+        return $out;
     }
 
     public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array

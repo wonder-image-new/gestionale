@@ -101,14 +101,12 @@ return [
         'description' => 'Percentuale per commerciale con eccezioni per categoria e prodotto, maturata su pagato o evaso, stornata sui resi, con estratti conto ed export.',
         'area' => 'Vendite',
         'requires' => ['sales_agents'],
-        'created' => false,
     ],
     'sales_agent_network_commissions' => [
         'name' => 'Provvigioni di rete',
         'description' => 'Chi sta sopra prende una percentuale sul venduto della sua rete, livello per livello, con una base che vale per tutti.',
         'area' => 'Vendite',
         'requires' => ['sales_agent_network', 'sales_agent_commissions'],
-        'created' => false,
     ],
     'sales_agent_discount_limits' => [
         'name' => 'Sconto massimo dei commerciali',
