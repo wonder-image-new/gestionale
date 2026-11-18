@@ -70,3 +70,4 @@ check('con la funzionalità spenta non c\'è limite né predefinito', function (
 });
 
 check('gli id si puliscono: interi positivi senza doppioni', fn () => Lists::ids(['3', 5, '5', 0, '', 'x', -2]) === [3, 5]);
+summary();

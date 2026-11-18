@@ -381,7 +381,9 @@
             "user_email": "L'email del commerciale non è valida.",
             "user_other_role": "C'è già un utente con questa email ma con un altro ruolo: cambialo da Utenti oppure usa un'altra email.",
             "user_not_created": "Non sono riuscito a creare l'utente del commerciale: controlla che email e username non siano già usati.",
-            "invalid_percent": "{{field}} va da 0 a 100."
+            "invalid_percent": "{{field}} va da 0 a 100.",
+            "default_not_in_list": "Il listino predefinito deve essere fra i listini spuntati del commerciale.",
+            "price_list_not_allowed": "Questo listino non è fra i tuoi: scegline uno dei tuoi o chiedi all'ufficio."
         },
         "payment_term": {
             "no_installments": "Serve almeno una rata: aggiungi i giorni e la percentuale.",

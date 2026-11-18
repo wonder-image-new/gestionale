@@ -8,7 +8,7 @@ use Wonder\App\Visibility\RowVisibility;
 use Wonder\Plugin\CustomerAccount\Support\Import\{AddressLayout, CompanyLayout, ImportExtension, PeopleLayout, RelationLayout};
 use Wonder\Plugin\Gestionale\Models\Contacts\{Company, Contact};
 use Wonder\Plugin\Gestionale\Resources\Contacts\{CompanyResource, CustomerResource};
-use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentPriceLists;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
 /**
@@ -98,7 +98,14 @@ class GestionaleContactsImport extends ImportExtension
         $values = [];
         $errors = [];
 
-        foreach ($this->options($layout) as $key => $options) {
+        $all = $this->options($layout);
+
+        // Il commerciale ritrova fra le scelte il listino già sulla scheda.
+        if (isset($all['price_list']) && $current !== null && SalesAgentPriceLists::allowed() !== null) {
+            $all['price_list'] = $this->priceListChoices($resource, (int) ($current['price_list_id'] ?? 0));
+        }
+
+        foreach ($all as $key => $options) {
             $cell = trim((string) ($data[$key] ?? ''));
 
             if ($cell === '') {
@@ -122,6 +129,14 @@ class GestionaleContactsImport extends ImportExtension
             $values['agent_id'] = (string) $own;
         }
 
+        // E con il suo listino predefinito, se la colonna è vuota.
+        if ($current === null && isset($all['price_list']) && !isset($values['price_list_id'])) {
+            $default = $this->newPriceList($resource);
+            if ($default > 0) {
+                $values['price_list_id'] = (string) $default;
+            }
+        }
+
         return ['values' => $values, 'errors' => $errors];
     }
 
@@ -142,7 +157,7 @@ class GestionaleContactsImport extends ImportExtension
         $options = [];
 
         if ($resource::priceListShown()) {
-            $options['price_list'] = PriceListResource::options(0, true);
+            $options['price_list'] = $resource::priceListChoices();
         }
 
         if ($resource::paymentDefaultsShown()) {
@@ -162,6 +177,27 @@ class GestionaleContactsImport extends ImportExtension
     }
 
     /** @return class-string<CustomerResource>|null */
+    /**
+     * Le scelte del listino per una scheda che c'è già.
+     *
+     * @param class-string<CustomerResource> $resource
+     * @return array<int, string>
+     */
+    protected function priceListChoices(string $resource, int $keep): array
+    {
+        return $resource::priceListChoices($keep);
+    }
+
+    /**
+     * Il listino delle schede nuove del commerciale.
+     *
+     * @param class-string<CustomerResource> $resource
+     */
+    protected function newPriceList(string $resource): int
+    {
+        return $resource::newPriceList();
+    }
+
     private function resource(string $layout): ?string
     {
         return match ($layout) {

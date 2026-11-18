@@ -58,7 +58,7 @@ final class SalesAgentPriceLists
             SalesAgentPriceList::create(['sales_agent_id' => $agentId, 'price_list_id' => $id]);
         }
 
-        SalesAgent::update(['default_price_list_id' => in_array($default, $ids, true) ? $default : 0], ['id' => $agentId]);
+        SalesAgent::update(['default_price_list_id' => in_array($default, $ids, true) ? $default : 0], $agentId);
         unset(self::$cache[$agentId]);
     }
 

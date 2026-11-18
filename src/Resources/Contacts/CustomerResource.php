@@ -63,6 +63,7 @@ use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 use Wonder\Plugin\Custom\Fattura\Valori\EsigibilitaIva;
 use Wonder\Sql\Transaction;
 use Wonder\App\Visibility\RowVisibility;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentPriceLists;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
 /**
@@ -315,7 +316,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
 
         if (static::priceListShown()) {
             $fields[] = FormField::key('price_list_id')
-                ->select(['' => 'Nessuno (prezzi di catalogo)'] + PriceListResource::options(0, true))
+                ->select(['' => 'Nessuno (prezzi di catalogo)'] + static::priceListChoices(static::storedPriceList((int) (static::currentId() ?? 0))))
                 ->label('Listino');
         }
 
@@ -341,6 +342,45 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
     public static function priceListShown(): bool
     {
         return static::sellsTo() && Gestionale::feature('customer_price_lists');
+    }
+
+    /**
+     * Le scelte del listino. L'ufficio vede tutti i listini; il commerciale
+     * (`sales_agent_price_lists`) solo i suoi attivi, più quello già sulla
+     * scheda, che può togliere ma non rimettere.
+     *
+     * @return array<int, string>
+     */
+    public static function priceListChoices(int $keep = 0): array
+    {
+        $allowed = SalesAgentPriceLists::allowed();
+
+        return SalesAgentPriceLists::choices(PriceListResource::options($keep, $allowed === null), $allowed, $keep);
+    }
+
+    /** Il listino di una scheda nuova del commerciale: il suo predefinito, se è attivo. */
+    public static function newPriceList(): int
+    {
+        $default = SalesAgentPriceLists::forNew();
+
+        return $default > 0 && isset(PriceListResource::options()[$default]) ? $default : 0;
+    }
+
+    /** Il listino salvato sulla scheda; 0 per una nuova. */
+    protected static function storedPriceList(int $id): int
+    {
+        // Serve solo a tenere il listino fra le scelte del commerciale.
+        if ($id <= 0 || SalesAgentPriceLists::allowed() === null) {
+            return 0;
+        }
+
+        try {
+            $row = static::$model::findById($id);
+        } catch (\Throwable) {
+            return 0;
+        }
+
+        return (int) (is_array($row) ? ($row['price_list_id'] ?? 0) : 0);
     }
 
     /** Metodo e condizione predefiniti: solo per i clienti, con «Vendita in ufficio». */
@@ -1462,6 +1502,14 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             $values['phone_prefix'] = VisitorCountry::phonePrefix();
         }
 
+        // E con il listino predefinito del commerciale, che può cambiare.
+        if ($mode !== 'edit' && static::priceListShown() && (int) ($values['price_list_id'] ?? 0) <= 0) {
+            $default = static::newPriceList();
+            if ($default > 0) {
+                $values['price_list_id'] = (string) $default;
+            }
+        }
+
         if (!static::rolesShown()) {
             return $values;
         }
@@ -1552,6 +1600,19 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
             unset($values['price_list_id']);
         } elseif (array_key_exists('price_list_id', $values)) {
             $values['price_list_id'] = max(0, (int) $values['price_list_id']);
+            $previous = $id > 0 ? (int) ($oldValues['price_list_id'] ?? static::storedPriceList($id)) : 0;
+
+            // Il commerciale: solo i suoi listini attivi o quello che c'era già.
+            if ($values['price_list_id'] > 0 && SalesAgentPriceLists::allowed() !== null
+                && !isset(static::priceListChoices($previous)[$values['price_list_id']])) {
+                throw UserError::make('sales_agent.price_list_not_allowed');
+            }
+        } elseif ($action === 'store') {
+            // Scheda nuova senza listino nella richiesta (API): il predefinito del commerciale.
+            $default = static::newPriceList();
+            if ($default > 0) {
+                $values['price_list_id'] = $default;
+            }
         }
 
         $values = static::agentValue($values, $action);

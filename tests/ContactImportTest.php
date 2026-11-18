@@ -42,7 +42,7 @@ if (!function_exists('__t')) {
 }
 
 /** Le scelte fisse al posto di quelle lette dal database. */
-final class ImportConScelte extends GestionaleContactsImport
+class ImportConScelte extends GestionaleContactsImport
 {
     protected function options(string $layout): array
     {
@@ -146,6 +146,41 @@ check('le schede che il commerciale non vede non si riconoscono; l\'ufficio le v
 check('bottoni in più negli elenchi: indirizzi sulle persone, indirizzi e referenti sulle aziende', function () {
     return \Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource::importExtraLayouts() === [\Wonder\Plugin\CustomerAccount\Support\Import\AddressLayout::KEY]
         && \Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource::importExtraLayouts() === [\Wonder\Plugin\CustomerAccount\Support\Import\AddressLayout::KEY, \Wonder\Plugin\CustomerAccount\Support\Import\RelationLayout::KEY];
+});
+
+/** Il commerciale con i listini 3 (predefinito) e, su una scheda, il 6 messo dall'ufficio. */
+final class ImportListiniCommerciale extends ImportConScelte
+{
+    protected function priceListChoices(string $resource, int $keep): array
+    {
+        return \Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentPriceLists::choices([3 => 'Rivenditori', 6 => 'Promo'], [3], $keep);
+    }
+
+    protected function newPriceList(string $resource): int
+    {
+        return 3;
+    }
+}
+
+check('il commerciale coi suoi listini: predefinito sulle nuove, il listino già sulla scheda resta, gli altri no', function () use ($forza, $contesto, $commerciale, $ufficio) {
+    $forza(['customer_price_lists' => true, 'sales_agent_price_lists' => true]);
+    (new ReflectionProperty(\Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentPriceLists::class, 'cache'))->setValue(null, [5 => ['lists' => [3], 'default' => 3]]);
+    $import = new ImportListiniCommerciale();
+    $come = static fn (array $riga, ?array $scheda): array => RowVisibility::as($commerciale, static fn (): array => $import->values(PeopleLayout::KEY, $riga, $scheda, $contesto));
+
+    $nuova = $come([], null);
+    $catalogo = $come(['price_list' => 'Nessuno'], null);
+    $tenuto = $come(['price_list' => 'Promo'], ['id' => 3, 'price_list_id' => 6]);
+    $rifiutato = $come(['price_list' => 'Promo'], ['id' => 4, 'price_list_id' => 0]);
+    $ufficioNuova = RowVisibility::as($ufficio, static fn (): array => $import->values(PeopleLayout::KEY, [], null, $contesto));
+    \Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentPriceLists::forget();
+    $forza([]);
+
+    return $nuova['values'] === ['agent_id' => '5', 'price_list_id' => '3']
+        && $catalogo['values'] === ['price_list_id' => '0', 'agent_id' => '5']
+        && $tenuto['values'] === ['price_list_id' => '6'] && $tenuto['errors'] === []
+        && $rifiutato['values'] === [] && count($rifiutato['errors']) === 1
+        && $ufficioNuova['values'] === ['price_list_id' => '3'];
 });
 
 summary();
