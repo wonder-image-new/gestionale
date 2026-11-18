@@ -17,6 +17,7 @@ use Wonder\Plugin\Gestionale\Support\Promotions\Coupons;
 use Wonder\Plugin\Gestionale\Support\Returns\Returns;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
 use Wonder\Plugin\Gestionale\Support\Stock\Allocation;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\DiscountLimit;
 use Wonder\Sql\Transaction;
 use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 
@@ -69,6 +70,12 @@ final class Lifecycle
 
             if ($status === 'cancelled') {
                 throw UserError::make('order.cancelled_cannot_confirm');
+            }
+
+            // Lo sconto oltre il massimo del commerciale aspetta l'ufficio; un
+            // pagamento arrivato si registra comunque.
+            if (in_array($status, self::CONFIRMABLE, true) && empty($options['payment']) && DiscountLimit::blocks($order)) {
+                throw UserError::make('order.discount_needs_approval');
             }
 
             if (!in_array($status, self::CONFIRMABLE, true)) {

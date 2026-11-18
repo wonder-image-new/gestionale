@@ -14,6 +14,7 @@ use Wonder\Plugin\Gestionale\Support\Backend\RowMenu;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderSheet;
 use Wonder\Plugin\Gestionale\Support\Orders\StatusLabels;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderForm;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\DiscountLimit;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
 /**
@@ -111,13 +112,13 @@ final class QuoteResource extends OfficeOrderResource
             $stati[$stato] = StatusLabels::order($stato)['label'];
         }
 
-        return SalesAgents::filter(TableLayoutSchema::for(static::class)
+        return DiscountLimit::filter(SalesAgents::filter(TableLayoutSchema::for(static::class)
             ->title('Preventivi')
             ->results()
             ->buttonAdd(true, 'Nuovo preventivo')
             ->filterSearch()
             ->searchFields(['order_number', 'quote_number', 'billing_name', 'billing_surname', 'billing_business_name', 'email'])
-            ->filterCustom('Stato', 'status', $stati));
+            ->filterCustom('Stato', 'status', $stati)));
     }
 
     /** Il numero del preventivo: quello dell'ordine; i vecchi preventivi inviati hanno il loro. */
@@ -248,6 +249,10 @@ final class QuoteResource extends OfficeOrderResource
 
         if ($result['error'] !== '') {
             return ['ok' => false, 'message' => $result['error'], 'url' => $edit];
+        }
+
+        if ($result['decided'] !== '') {
+            return ['ok' => true, 'message' => $result['decided'] === 'approved' ? 'Sconto approvato.' : 'Sconto rifiutato.', 'url' => static::editUrl($result['id'])];
         }
 
         if ($result['accepted']) {

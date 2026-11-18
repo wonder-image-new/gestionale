@@ -19,6 +19,7 @@ use Wonder\Plugin\Gestionale\Support\Catalog\ProductPhotos;
 use Wonder\Plugin\Gestionale\Support\Codes;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Pricing\LinePrice;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\DiscountLimit;
 use Wonder\Plugin\Gestionale\Support\Pricing\OrderTotals;
 use Wonder\Plugin\Gestionale\Support\Pricing\PriceLists;
 use Wonder\Plugin\Gestionale\Support\Promotions\Campaigns;
@@ -242,6 +243,8 @@ final class Cart
             $includesTax = (string) ($cart['prices_include_tax'] ?? 'true') === 'true';
 
             $shipping = Gestionale::feature('shipping');
+            $limits = !$isCart && DiscountLimit::enabled();
+            $references = [];
             // Prodotti e modelli delle righe in una lettura sola.
             $products = self::productsOf($all);
             $models = Bundles::modelsOf(array_values($products));
@@ -388,6 +391,29 @@ final class Cart
                     'customization_surcharge' => $item['customization_surcharge'] ?? 0,
                 ]);
 
+                // Il prezzo automatico della riga senza interventi a mano: misura
+                // lo sconto del commerciale (#77). Solo fuori dal carrello.
+                if ($limits && (string) $item['type'] === 'product' && $productId > 0) {
+                    $refListed = $manualPrice === '' ? $listed : PriceLists::resolve(
+                        $priceLists,
+                        $productId,
+                        (float) ($item['quantity'] ?? 0),
+                        is_array($product) ? (float) ($product['price'] ?? 0) : 0.0,
+                        $includesTax,
+                        is_array($tax) ? (float) ($tax['rate'] ?? 0) : 0.0
+                    );
+                    $refCampaign = $manualPrice === '' ? $campaign
+                        : ($refListed['price'] <= 0.0 ? Campaigns::forProduct($productId, $now, $channel) : null);
+                    $references[(int) $item['id']] = LinePrice::of([
+                        'quantity' => 1,
+                        'price' => is_array($product) ? ($product['price'] ?? 0) : ($item['list_price'] ?? 0),
+                        'sale_price' => is_array($product) ? ($product['sale_price'] ?? 0) : 0,
+                        'manual_unit_price' => '',
+                        'price_list_price' => $refListed['price'] > 0.0 ? number_format($refListed['price'], 2, '.', '') : '',
+                        'campaign_price' => $refCampaign !== null ? number_format($refCampaign['price'], 2, '.', '') : '',
+                    ])['unit_price'];
+                }
+
                 // Il prezzo di campagna vale solo se ha vinto davvero: con uno sconto
                 // di riga a mano la riga è «manual» e la campagna non c'entra.
                 $campaignId = $campaign !== null && $price['price_source'] === 'campaign' ? $campaign['campaign_id'] : 0;
@@ -449,7 +475,22 @@ final class Cart
                     'tax_rate' => number_format((float) $line['tax_rate'], 2, '.', ''),
                     'tax_nature' => (string) $line['tax_nature'],
                     'line_total' => $line['line_total'],
-                ] + ($rewritten[(int) $line['id']] ?? []), (int) $line['id']);
+                ] + ($rewritten[(int) $line['id']] ?? [])
+                  + ($limits ? ['reference_price' => $references[(int) $line['id']] ?? '0.00'] : []), (int) $line['id']);
+            }
+
+            if ($limits) {
+                $measured = [];
+
+                foreach ($totals['lines'] as $line) {
+                    $measured[] = $line + ['reference_price' => $references[(int) $line['id']] ?? 0];
+                }
+
+                DiscountLimit::apply(
+                    $cart,
+                    $measured,
+                    (string) ($cart['manual_discount_type'] ?? 'none') !== 'none' && (float) ($cart['manual_discount_value'] ?? 0) > 0
+                );
             }
 
             foreach ($packs as $pack) {

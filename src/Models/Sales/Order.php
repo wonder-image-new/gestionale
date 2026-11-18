@@ -35,6 +35,9 @@ final class Order extends Model
     public static string $icon = 'bi bi-receipt';
 
     public const STAGES = ['cart', 'quote', 'order'];
+
+    /** Approvazione dello sconto del commerciale (#77). */
+    public const APPROVAL_STATUSES = ['none', 'pending', 'approved', 'rejected'];
     public const CHANNELS = ['office', 'online', 'b2b_portal', 'pos'];
 
     /** Preventivo e ordine in un enum solo (4.7). */
@@ -126,6 +129,11 @@ final class Order extends Model
             Column::key('company_id')->int()->default(0),
             // Il commerciale a cui va la vendita, fissato alla creazione (#77).
             Column::key('agent_id')->int()->default(0),
+            // Sconto del commerciale oltre il suo massimo: lo approva l'ufficio.
+            Column::key('approval_status')->enum(static::APPROVAL_STATUSES)->default('none'),
+            Columns::decimal('approval_discount', '5,2'),
+            Column::key('approved_by')->int()->default(0),
+            Column::key('approved_at')->datetime(),
             Column::key('email')->length(150),
             Column::key('phone')->length(50),
             // Con `company_id` la persona è il referente: il nome si copia
@@ -204,6 +212,10 @@ final class Order extends Model
             Field::key('customer_id')->number()->decimals(0),
             Field::key('company_id')->number()->decimals(0),
             Field::key('agent_id')->number()->decimals(0),
+            Field::key('approval_status')->text()->sanitize(false),
+            Field::key('approval_discount')->number()->decimals(2),
+            Field::key('approved_by')->number()->decimals(0),
+            Field::key('approved_at')->date(),
             Field::key('email')->email(),
             Field::key('phone')->text()->sanitize(false),
             Field::key('referent_name')->text(),

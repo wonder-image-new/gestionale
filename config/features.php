@@ -116,7 +116,6 @@ return [
         'description' => 'Un ordine con uno sconto oltre il limite del commerciale resta da approvare finché l\'ufficio non lo conferma.',
         'area' => 'Vendite',
         'requires' => ['sales_agents'],
-        'created' => false,
     ],
     'sales_agent_price_lists' => [
         'name' => 'Listini dei commerciali',

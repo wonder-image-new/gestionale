@@ -3,7 +3,9 @@
 namespace Wonder\Plugin\Gestionale\Support\Sales;
 
 use JsonException;
+use Wonder\Plugin\Gestionale\Models\Sales\Order;
 use Wonder\Plugin\Gestionale\Models\Sales\OrderItem;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\DiscountLimit;
 use Wonder\Plugin\Gestionale\Models\Tax\TaxCategory;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 
@@ -35,11 +37,11 @@ final class OfficeOrderForm
      * sulla bozza com'è, senza salvarla prima.
      *
      * @param array<string, mixed> $post
-     * @return array{id: int, number: string, deleted: bool, error: string, sent: string, accepted: bool, rejected: bool, email: string}
+     * @return array{id: int, number: string, deleted: bool, error: string, sent: string, accepted: bool, rejected: bool, email: string, decided: string}
      */
     public static function submit(int $id, array $post, int $userId, string $stage = 'order', bool $save = true): array
     {
-        $result = ['id' => $id, 'number' => '', 'deleted' => false, 'error' => '', 'sent' => '', 'accepted' => false, 'rejected' => false, 'email' => ''];
+        $result = ['id' => $id, 'number' => '', 'deleted' => false, 'error' => '', 'sent' => '', 'accepted' => false, 'rejected' => false, 'email' => '', 'decided' => ''];
         $intent = (string) ($post['intent'] ?? 'save');
         $quote = $stage === 'quote';
         $notify = (string) ($post['notify'] ?? '') === 'true';
@@ -48,6 +50,12 @@ final class OfficeOrderForm
             if ($intent === 'delete') {
                 $quote ? Quotes::delete($id) : OfficeOrders::delete($id);
                 $result['deleted'] = true;
+
+                return $result;
+            }
+
+            if (in_array($intent, ['approve_discount', 'reject_discount'], true)) {
+                $result['decided'] = self::decideDiscount($id, $intent === 'approve_discount', $userId);
 
                 return $result;
             }
@@ -90,6 +98,23 @@ final class OfficeOrderForm
         }
 
         return $result;
+    }
+
+    /**
+     * L'ufficio approva o rifiuta lo sconto del commerciale (#77). Solo se la
+     * decisione vale adesso: un commerciale non approva mai.
+     */
+    private static function decideDiscount(int $id, bool $approve, int $userId): string
+    {
+        $order = $id > 0 ? Order::findById($id) : null;
+
+        if (!is_array($order) || !in_array($approve ? 'approve' : 'reject', DiscountLimit::decisionsNow($order), true)) {
+            throw UserError::make('order.discount_decision_unavailable');
+        }
+
+        DiscountLimit::decide($id, $approve, $userId);
+
+        return $approve ? 'approved' : 'rejected';
     }
 
     /**

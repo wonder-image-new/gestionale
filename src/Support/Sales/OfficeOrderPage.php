@@ -23,6 +23,7 @@ use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
 use Wonder\Plugin\CustomerAccount\Support\CompanyBrands;
 use Wonder\Plugin\Gestionale\Support\Contacts\Contacts;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\DiscountLimit;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\DocumentBrands;
@@ -493,7 +494,17 @@ final class OfficeOrderPage
         $editing = (int) ($values['id'] ?? 0) > 0;
         $status = (string) ($values['status'] ?? 'draft');
         $neverSent = (int) ($values['quote_revision'] ?? 0) === 0;
+        $blocked = $editing && DiscountLimit::blocks($values);
         $intents = [];
+        $what = $quote ? 'il preventivo si può inviare' : 'la bozza si può confermare';
+
+        foreach ($editing ? DiscountLimit::decisionsNow($values) : [] as $decision) {
+            $intents[] = $decision === 'approve'
+                ? ['intent' => 'approve_discount', 'label' => 'Approva sconto', 'icon' => 'bi bi-patch-check', 'variant' => 'success', 'outline' => false, 'header' => true,
+                    'confirm' => ['Lo sconto del commerciale ('.number_format((float) ($values['approval_discount'] ?? 0), 2, ',', '').'%) si approva e '.$what.'. Le modifiche non salvate di questa pagina si perdono.', 'Approva sconto', 'Approva', 'success']]
+                : ['intent' => 'reject_discount', 'label' => 'Rifiuta sconto', 'icon' => 'bi bi-x-octagon', 'variant' => 'danger', 'outline' => true, 'header' => true,
+                    'confirm' => ['Lo sconto si rifiuta: resta bloccato finché il commerciale non lo riporta entro il suo massimo o l\'ufficio non lo approva. Le modifiche non salvate di questa pagina si perdono.', 'Rifiuta sconto', 'Rifiuta', 'danger']];
+        }
 
         if ($quote) {
             // Anche su un preventivo nuovo: prima si salva, poi passa a ordine.
@@ -502,10 +513,12 @@ final class OfficeOrderPage
                     'confirm' => ['Il cliente ha accettato: il preventivo si salva e diventa una bozza d\'ordine con le stesse righe e lo stesso numero. Lì controlli consegna e pagamento e lo confermi.', 'Trasforma in ordine', 'Trasforma in ordine', 'success']];
             }
 
-            $intents[] = ['intent' => 'send', 'label' => $status === 'sent' ? 'Invia di nuovo' : 'Invia al cliente', 'icon' => 'bi bi-send', 'variant' => 'dark', 'outline' => false, 'header' => true,
+            if (!$blocked) {
+                $intents[] = ['intent' => 'send', 'label' => $status === 'sent' ? 'Invia di nuovo' : 'Invia al cliente', 'icon' => 'bi bi-send', 'variant' => 'dark', 'outline' => false, 'header' => true,
                 'confirm' => [$neverSent
                     ? 'Il preventivo si salva e si archivia il suo PDF; con l\'interruttore acceso il cliente lo riceve per email.'
                     : 'Il preventivo si salva e, se è cambiato, diventa una revisione nuova con il suo PDF; con l\'interruttore acceso il cliente lo riceve per email.', 'Invia il preventivo', 'Invia', 'primary']];
+            }
 
             if ($editing && $neverSent && $status === 'draft') {
                 $intents[] = ['intent' => 'delete', 'label' => 'Elimina', 'icon' => 'bi bi-trash', 'variant' => 'danger', 'outline' => true, 'header' => true,
@@ -518,8 +531,10 @@ final class OfficeOrderPage
             return $intents;
         }
 
-        $intents[] = ['intent' => 'confirm', 'label' => 'Conferma ordine', 'icon' => 'bi bi-check2-circle', 'variant' => 'dark', 'outline' => false, 'header' => true,
+        if (!$blocked) {
+            $intents[] = ['intent' => 'confirm', 'label' => 'Conferma ordine', 'icon' => 'bi bi-check2-circle', 'variant' => 'dark', 'outline' => false, 'header' => true,
             'confirm' => ['La bozza si salva, la merce esce dal magazzino e nascono le rate; il numero resta quello della bozza. Dopo le righe non si modificano più: si possono solo annullare.', 'Conferma ordine', 'Conferma ordine', 'primary']];
+        }
 
         if ($editing) {
             $intents[] = ['intent' => 'delete', 'label' => 'Elimina bozza', 'icon' => 'bi bi-trash', 'variant' => 'danger', 'outline' => true, 'header' => true,

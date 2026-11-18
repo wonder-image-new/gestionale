@@ -43,7 +43,7 @@ final class OrderItem extends Model
             Column::key('order_id')->int()->null(false)->foreign(Order::$table),
             ...static::sqlColumnsFromDataSchema([
                 'list_price', 'unit_price', 'manual_unit_price', 'discount_value', 'order_discount_amount',
-                'tax_rate', 'customization_surcharge', 'line_total',
+                'tax_rate', 'customization_surcharge', 'line_total', 'reference_price',
             ]),
             Column::key('type')->enum(static::TYPES)->default('product'),
             Column::key('product_id')->int()->default(0),
@@ -124,6 +124,8 @@ final class OrderItem extends Model
             Field::key('customization')->json(),
             Field::key('customization_surcharge')->number()->decimals(2),
             Field::key('line_total')->number()->decimals(2),
+            // Il prezzo automatico senza interventi a mano: misura lo sconto del commerciale.
+            Field::key('reference_price')->number()->decimals(2),
             Field::key('batch_id')->number()->decimals(0),
             Field::key('supplier_id')->number()->decimals(0),
         ];
