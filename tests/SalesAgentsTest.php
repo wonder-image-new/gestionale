@@ -69,11 +69,11 @@ check('le regole: l\'ufficio vede tutto, il commerciale i suoi', function () use
     $contatti = (string) SalesAgents::contactsRule($agente);
 
     return SalesAgents::documentsRule($utente(2, ['sales'])) === null
-        && str_contains($documenti, '`agent_id` = 7')
-        && str_contains($documenti, '`customer_id` IN (SELECT `id` FROM `'.Wonder\Plugin\Gestionale\Models\Contacts\Contact::$table.'` WHERE `agent_id` = 7)')
+        && str_contains($documenti, '`agent_id` IN (7)')
+        && str_contains($documenti, '`customer_id` IN (SELECT `id` FROM `'.Wonder\Plugin\Gestionale\Models\Contacts\Contact::$table.'` WHERE `agent_id` IN (7))')
         && str_contains($documenti, '`company_id` IN (SELECT `id` FROM')
-        && str_contains($contatti, '`agent_id` = 7 OR `id` IN (SELECT `person_id`')
-        && SalesAgents::companiesRule($agente) === '`agent_id` = 7';
+        && str_contains($contatti, '`agent_id` IN (7) OR `id` IN (SELECT `person_id`')
+        && SalesAgents::companiesRule($agente) === '`agent_id` IN (7)';
 });
 
 check('un commerciale senza scheda attiva non vede nulla', function () use ($forza, $ids, $utente) {

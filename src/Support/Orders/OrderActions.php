@@ -75,7 +75,8 @@ final class OrderActions
             return [];
         }
 
-        if (in_array($status, ['draft', 'pending'], true)) {
+        // Lo sconto del commerciale oltre il massimo aspetta l'ufficio (#77).
+        if (in_array($status, ['draft', 'pending'], true) && !in_array((string) ($order['approval_status'] ?? 'none'), ['pending', 'rejected'], true)) {
             $azioni[] = self::CONFIRM;
         }
 

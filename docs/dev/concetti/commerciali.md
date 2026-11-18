@@ -167,15 +167,115 @@ la visibilità per riga nasconderebbe i dati anche all'ufficio). Aree in
 `catalogo` in lettura; nessuna `delete`. L'area `commerciali` (gestione delle
 schede) è dell'`administrator`.
 
-## Funzionalità previste
+## Impostazioni
 
-Nel catalogo con `'created' => false`, tutte richiedono `sales_agents`:
-`sales_agent_network` (rete su più livelli, usa `parent_id` della scheda),
-provvigioni e provvigioni di rete (useranno `commission_percent`), sconto
-massimo (`max_discount_percent`), listini, codici sconto e obiettivi dei
-commerciali. Con la rete le regole dovranno includere i commerciali sotto
-quello corrente: la forma resta la stessa, cambia `agent_id = N` in
-`agent_id IN (...)`.
+`Support\SalesAgents\SalesAgentSettings` aggiunge il riquadro «Commerciali»
+alle Impostazioni (colonne su `gst_settings`); ogni campo c'è solo con la sua
+funzionalità accesa e il salvataggio scarta quelli spenti:
+
+| Colonna | Funzionalità | Valori |
+|---|---|---|
+| `agent_network_edit` | `sales_agent_network` | `true`/`false`: il default di chi sta sopra |
+| `agent_commission_trigger` | `sales_agent_commissions` | `paid` o `fulfilled` |
+| `agent_network_commission_default` | `sales_agent_network_commissions` | % di base per ogni livello |
+| `agent_network_levels` | `sales_agent_network_commissions` | «3, 1»: % dal livello 1 in su, vuoto = la base |
+| `agent_target_metric` | `sales_agent_targets` | `revenue`, `orders`, `new_customers` |
+
+## Rete di commerciali
+
+Funzionalità `sales_agent_network`. `gst_sales_agents.parent_id` dice chi sta
+sopra; `network_edit` (`default`/`true`/`false`) se può modificare la rete
+sotto. Tutto in `Support\SalesAgents\SalesAgentNetwork`:
+
+- `parents()` legge la mappa una volta per richiesta (`forget()` la svuota,
+  `use()` la imposta nei test); `descendants()`, `ancestors()` hanno la
+  guardia contro i cicli.
+- `team($id)`: lui e tutta la rete sotto. Con la rete accesa le regole di
+  `SalesAgents` usano `agent_id IN (team)` al posto di `agent_id = N`.
+- `validParent()`: un commerciale non va sotto se stesso né sotto la sua rete
+  (`sales_agent.invalid_parent`).
+- `canEdit()`/`canEditNow()` e `guard($oldValues)`: le schede di clienti,
+  aziende e ordini da ufficio chiamano `guard()` prima di salvare una riga di un altro della
+  rete; senza permesso `sales_agent.network_read_only`.
+
+## Sconto massimo
+
+Funzionalità `sales_agent_discount_limits`, colonna
+`gst_sales_agents.max_discount_percent`. Su `gst_orders`: `approval_status`
+(`none`, `pending`, `approved`, `rejected`), `approval_discount`,
+`approved_by`, `approved_at`. In `Support\SalesAgents\DiscountLimit`:
+
+- `percent($lines, $headerManual)`: solo lo sconto a mano, misurato su
+  `reference_price` della riga (prezzo automatico), più lo sconto di testata
+  se scritto a mano.
+- `status()` e `apply()`: dopo ogni ricalcolo del carrello (`Cart`) di un
+  documento con commerciale; entro il massimo torna `none`, sopra va
+  `pending`, un `approved` resta tale finché lo sconto non supera quello
+  approvato.
+- `blocks()`: `pending` e `rejected` fermano la conferma (`Lifecycle`,
+  `order.discount_needs_approval`, tranne quando arriva un pagamento) e l'invio
+  del preventivo (`Quotes`). `decide()` è l'azione «Approva/Rifiuta sconto»
+  di `OfficeOrderPage`, solo per l'ufficio.
+
+## Codici dei commerciali
+
+Funzionalità `sales_agent_coupons`, colonna `gst_coupons.agent_id`. In
+`CouponResource` il campo c'è solo per l'ufficio; il commerciale vede i suoi
+coupon in sola lettura (regola `SalesAgentCoupons::rule()` su `RowVisibility`,
+`sales_agent.coupon_read_only` in scrittura). `Coupons` chiama
+`SalesAgentCoupons::attribute()` quando un ordine registra i coupon: l'ordine
+prende l'`agent_id` del primo coupon che ne ha uno (`agentOf()`), il cliente
+(azienda, altrimenti persona) solo se non ne aveva (`plan()`).
+
+## Provvigioni
+
+Funzionalità `sales_agent_commissions` e `sales_agent_network_commissions`.
+
+- `gst_sales_agent_commissions` (`Models\SalesAgents\SalesAgentCommission`):
+  un registro a sola aggiunta, una riga per `order_id`, `sales_agent_id`,
+  `level` (0 = chi vende, 1.. = rete), `type` (`accrual`/`reversal`), `base`,
+  `percent`, `amount` (sempre positivo, il segno lo dà `type`: `signed()`),
+  `accrued_at`, `paid_at`.
+- `gst_sales_agent_commission_rules`
+  (`SalesAgentCommissionRule`): le eccezioni per `product_id` o
+  `category_id`, repeater della scheda del commerciale.
+
+`Support\SalesAgents\Commissions::sync($orderId)` ricalcola in transazione
+cosa spetta (`eligible()` col trigger delle impostazioni, `seller()` con
+`lineBase()` e `rate()`, `upline()` per la rete) e scrive solo la differenza
+con il registro (`diff()`): maturate in più, storni in meno. Si può chiamare
+quante volte si vuole. `refresh()` (che non lancia) la chiamano `Lifecycle`
+(cambio di stato), `Ledger` (pagamenti) e `Returns` (reso chiuso). Le regole
+cambiate valgono dal prossimo `sync` dell'ordine: non c'è un ricalcolo di
+massa.
+
+`Resources\SalesAgents\SalesAgentCommissionResource` («Provvigioni», solo
+elenco): filtri per commerciale (solo ufficio), periodo e liquidazione, CSV,
+azione di gruppo «Segna come liquidate» (`markPaid()`, che scrive `paid_at`
+anche sugli storni) e il totale `outstanding()` nel sottotitolo. Il
+commerciale vede `SalesAgentNetwork::team()`.
+
+## Obiettivi
+
+Funzionalità `sales_agent_targets`. `gst_sales_agent_targets`
+(`Models\SalesAgents\SalesAgentTarget`): `sales_agent_id`, `period`
+(`month`/`year`), `year`, `month` (0 per l'anno), `amount`, `position`;
+repeater «Obiettivi» della scheda (`sales_agent.invalid_target`).
+
+`Support\SalesAgents\Targets`:
+
+- `pick($rows, $year, $month)`: la prima riga del periodo vince;
+- `bounds()` e `actuals($ids, $from, $to)`: una query per fatturato
+  (`taxable_total`), ordini e clienti nuovi (nessun ordine valido prima di
+  `$from`). Ordini validi: `stage = 'order'`, stato in
+  `Commissions::STATUSES`, `ordered_at` valorizzato. Solo `agent_id` del
+  commerciale, non la rete;
+- `progress()`, `summary()`, `format()` per il testo.
+
+`Backend\Widgets\SalesAgentWidget` aggiunge «I miei obiettivi» (mese e anno).
+`Resources\SalesAgents\SalesAgentPerformanceResource` («Andamento
+commerciali», solo elenco) mostra per commerciale obiettivo del mese e
+dell'anno e i totali degli ultimi 12 mesi, letti una volta per pagina.
 
 ## Test
 
@@ -187,3 +287,9 @@ quello corrente: la forma resta la stessa, cambia `agent_id = N` in
 - `tests/integrazione/SalesAgentsTest.php` — visibilità reale di contatti,
   aziende e documenti, ufficio, commerciale disattivato, timbro, scheda
   cliente e filtro.
+- `tests/SalesAgentPriceListsTest.php` — listini consentiti e predefinito.
+- `tests/SalesAgentNetworkTest.php` — rete, cicli, `validParent`, `canEdit`.
+- `tests/SalesAgentDiscountLimitTest.php` — calcolo dello sconto e stati.
+- `tests/SalesAgentCouponsTest.php` — commerciale del coupon e del cliente.
+- `tests/SalesAgentCommissionsTest.php` — base, %, rete, trigger, differenza.
+- `tests/SalesAgentTargetsTest.php` — scelta del periodo, validazione, testo.

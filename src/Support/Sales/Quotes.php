@@ -16,6 +16,7 @@ use Wonder\Plugin\Gestionale\Support\Documents\DocumentSequences;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Orders\OrderNotifier;
 use Wonder\Plugin\Gestionale\Support\Status\StatusLogger;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\DiscountLimit;
 use Wonder\Sql\Transaction;
 
 /**
@@ -59,6 +60,10 @@ final class Quotes
                 }
             } elseif ($status !== 'draft') {
                 throw UserError::make('quote.cannot_send');
+            }
+
+            if (DiscountLimit::blocks($order)) {
+                throw UserError::make('quote.discount_needs_approval');
             }
 
             self::assertSendable($order, self::items($orderId));

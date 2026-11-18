@@ -63,6 +63,7 @@ use Wonder\Plugin\Gestionale\Support\Tax\VatCollectability;
 use Wonder\Plugin\Custom\Fattura\Valori\EsigibilitaIva;
 use Wonder\Sql\Transaction;
 use Wonder\App\Visibility\RowVisibility;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentNetwork;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentPriceLists;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
@@ -1534,6 +1535,7 @@ class CustomerResource extends GestionaleResource implements QuickCreateStore
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        SalesAgentNetwork::guard($oldValues);
         $crm = Crm::apply();
         $id = (int) ($oldValues['id'] ?? 0);
         $choice = trim((string) ($values['roles'] ?? ''));

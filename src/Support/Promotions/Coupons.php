@@ -3,6 +3,7 @@
 namespace Wonder\Plugin\Gestionale\Support\Promotions;
 
 use Wonder\Plugin\Gestionale\Gestionale;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentCoupons;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Promotions\Coupon;
@@ -269,6 +270,7 @@ final class Coupons
 
         $order = (array) Order::findById($orderId);
         $now = date('Y-m-d H:i:s');
+        $agents = [];
 
         foreach ($applied as $row) {
             $coupon = Coupon::findForUpdate(['id' => (int) $row['coupon_id'], 'deleted' => 'false'], 1);
@@ -295,7 +297,12 @@ final class Coupons
                 'discount_amount' => number_format(round((float) ($row['discount_amount'] ?? 0), 2), 2, '.', ''),
                 'redeemed_at' => $now,
             ]);
+
+            $agents[] = (int) ($coupon['agent_id'] ?? 0);
         }
+
+        // #77: l'ordine va al commerciale del codice.
+        SalesAgentCoupons::attribute($orderId, $order, SalesAgentCoupons::agentOf($agents));
 
         self::mirror($orderId);
     }

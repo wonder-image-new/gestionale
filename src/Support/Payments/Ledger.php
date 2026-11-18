@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Support\Payments;
 
+use Wonder\Plugin\Gestionale\Support\SalesAgents\Commissions;
 use RuntimeException;
 use Wonder\Plugin\Gestionale\Models\Payments\Payment;
 use Wonder\Plugin\Gestionale\Models\Payments\PaymentStatusLog;
@@ -166,7 +167,7 @@ final class Ledger
      */
     public static function sync(int $orderId): string
     {
-        return Transaction::run(static function () use ($orderId): string {
+        $status = Transaction::run(static function () use ($orderId): string {
             $order = Order::findForUpdate(['id' => $orderId], 1);
 
             if (!is_array($order) || $order === []) {
@@ -201,6 +202,11 @@ final class Ledger
 
             return $status;
         });
+
+        // Un pagamento può far maturare (o togliere) la provvigione.
+        Commissions::refresh($orderId);
+
+        return $status;
     }
 
     /**

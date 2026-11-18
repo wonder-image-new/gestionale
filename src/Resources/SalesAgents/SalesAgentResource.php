@@ -7,23 +7,32 @@ use Wonder\App\ResourceSchema\FormField;
 use Wonder\App\ResourceSchema\NavigationSchema;
 use Wonder\App\ResourceSchema\PageSchema;
 use Wonder\App\ResourceSchema\PermissionSchema;
+use Wonder\App\ResourceSchema\RepeaterColumn;
+use Wonder\App\ResourceSchema\RepeaterRelation;
 use Wonder\App\ResourceSchema\TableColumn;
 use Wonder\Elements\Components\Card;
 use Wonder\Elements\Components\Container;
 use Wonder\Elements\Components\SectionTitle;
 use Wonder\Elements\Form\Form;
+use Wonder\App\Support\Repeater;
 use Wonder\Plugin\Gestionale\Gestionale;
 use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
+use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\SalesAgents\SalesAgent;
+use Wonder\Plugin\Gestionale\Models\SalesAgents\SalesAgentCommissionRule;
+use Wonder\Plugin\Gestionale\Models\SalesAgents\SalesAgentTarget;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
+use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderEditor;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentNetwork;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentPriceLists;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentUsers;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\Targets;
 
 /**
  * «Commerciali» (#77, funzionalità `sales_agents`): chi vende per il negozio e
@@ -81,6 +90,8 @@ final class SalesAgentResource extends GestionaleResource
             'customers' => 'Clienti',
             'price_lists' => 'Listini',
             'default_price_list_id' => 'Listino predefinito',
+            'parent_id' => 'Sopra di lui',
+            'network_edit' => 'Può modificare la sua rete',
         ];
     }
 
@@ -111,11 +122,90 @@ final class SalesAgentResource extends GestionaleResource
                 ->value('true')
                 ->label('Stato'),
             FormField::key('note')->textarea()->label('Note'),
+            FormField::key('parent_id')
+                ->select(['' => 'Nessuno'] + static::parentOptions())
+                ->label('Sopra di lui'),
+            FormField::key('network_edit')
+                ->select(['default' => 'Come da impostazioni', 'true' => 'Sì', 'false' => 'No'])
+                ->value('default')
+                ->label('Può modificare la sua rete'),
             FormField::key('price_lists')->checkbox()->options(static::priceListOptions())->value([])->label(''),
             FormField::key('default_price_list_id')
                 ->select(['' => 'Nessuno'] + static::priceListOptions())
                 ->label('Listino predefinito'),
+            // Solo con la funzionalità: un form senza il campo svuoterebbe le regole.
+            ...(Gestionale::feature('sales_agent_commissions') ? [static::rulesField()] : []),
+            ...(Gestionale::feature('sales_agent_targets') ? [static::targetsField()] : []),
         ];
+    }
+
+    /** Gli obiettivi per mese o per anno. */
+    private static function targetsField(): FormField
+    {
+        $months = ['' => 'Tutto l\'anno'];
+        foreach (['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'] as $i => $name) {
+            $months[(string) ($i + 1)] = $name;
+        }
+
+        return FormField::key('targets')
+            ->repeater([
+                RepeaterColumn::key('id')->hidden(),
+                RepeaterColumn::key('period')->select(SalesAgentTarget::PERIODS)->label('Periodo')->columnSpan(2),
+                RepeaterColumn::key('year')->number()->label('Anno')->columnSpan(2),
+                RepeaterColumn::key('month')->select($months)->label('Mese')->columnSpan(3),
+                RepeaterColumn::key('amount')->number()->decimal(2)->label('Obiettivo')->columnFill(),
+            ])
+            ->relation(
+                RepeaterRelation::make(SalesAgentTarget::$table, 'sales_agent_id')
+                    ->model(SalesAgentTarget::class)
+                    ->positionKey('position')
+                    ->softDelete(false)
+            )
+            ->nested()
+            ->repeaterSortable()
+            ->repeaterAddLabel('Aggiungi obiettivo')
+            ->repeaterDeleteTitle('Elimina obiettivo')
+            ->repeaterDeleteText('Confermi l\'eliminazione di questo obiettivo?')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Elimina')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            ->label('');
+    }
+
+    /** Le regole di provvigione per prodotto o categoria. */
+    private static function rulesField(): FormField
+    {
+        return FormField::key('commission_rules')
+            ->repeater([
+                RepeaterColumn::key('id')->hidden(),
+                RepeaterColumn::key('product_id')->select(['' => 'Nessuno'] + PriceListResource::productOptions())->label('Prodotto')->columnFill(),
+                RepeaterColumn::key('category_id')->select(static::categoryOptions())->label('Oppure categoria')->columnSpan(4),
+                RepeaterColumn::key('percent')->number()->decimal(2)->label('Provvigione %')->columnSpan(2),
+            ])
+            ->relation(
+                RepeaterRelation::make(SalesAgentCommissionRule::$table, 'sales_agent_id')
+                    ->model(SalesAgentCommissionRule::class)
+                    ->positionKey('position')
+                    ->softDelete(false)
+            )
+            ->nested()
+            ->repeaterSortable()
+            ->repeaterAddLabel('Aggiungi regola')
+            ->repeaterDeleteTitle('Elimina regola')
+            ->repeaterDeleteText('Confermi l\'eliminazione di questa regola?')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Elimina')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            ->label('');
+    }
+
+    /** @return array<string, string> */
+    public static function categoryOptions(): array
+    {
+        $options = CategoryTree::options(static::rowsOf(Category::class, [], 'position'));
+        unset($options['']);
+
+        return ['' => 'Nessuna'] + $options;
     }
 
     public static function formLayoutSchema(): ?Form
@@ -145,6 +235,15 @@ final class SalesAgentResource extends GestionaleResource
                     static::getInput('active')->columnSpan(static::currentId() === null ? 12 : 6),
                     static::getInput('contact_id')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
+                ...(SalesAgentNetwork::enabled()
+                    ? [(new Card)->components([
+                        SectionTitle::make('Rete')
+                            ->tooltip('Il commerciale sopra di lui vede i suoi clienti e le sue vendite. «Può modificare la sua rete»: se può cambiare i dati dei commerciali sotto di lui; «Come da impostazioni» segue la scelta delle Impostazioni.')
+                            ->columnSpan(12),
+                        static::getInput('parent_id')->columnSpan(6),
+                        static::getInput('network_edit')->columnSpan(6),
+                    ])->columns(12)->columnSpan(12)]
+                    : []),
                 ...(SalesAgentPriceLists::enabled()
                     ? [(new Card)->components([
                         SectionTitle::make('Listini')
@@ -152,6 +251,22 @@ final class SalesAgentResource extends GestionaleResource
                             ->columnSpan(12),
                         static::getInput('price_lists')->columnSpan(12),
                         static::getInput('default_price_list_id')->columnSpan(6),
+                    ])->columns(12)->columnSpan(12)]
+                    : []),
+                ...(Gestionale::feature('sales_agent_commissions')
+                    ? [(new Card)->components([
+                        SectionTitle::make('Regole provvigione')
+                            ->tooltip('Una % diversa per un prodotto o per una categoria. Vale prima la regola del prodotto, poi quella della categoria (la prima in elenco se il prodotto ne ha più d\'una), poi la «Provvigione %» del commerciale.')
+                            ->columnSpan(12),
+                        static::getInput('commission_rules')->columnSpan(12),
+                    ])->columns(12)->columnSpan(12)]
+                    : []),
+                ...(Gestionale::feature('sales_agent_targets')
+                    ? [(new Card)->components([
+                        SectionTitle::make('Obiettivi')
+                            ->tooltip('Il valore da raggiungere in un mese o in tutto l\'anno, misurato come scelto nelle Impostazioni ('.Targets::metricLabel().'). Contano solo le vendite del commerciale, non quelle della sua rete. Per lo stesso periodo vale la prima riga in elenco.')
+                            ->columnSpan(12),
+                        static::getInput('targets')->columnSpan(12),
                     ])->columns(12)->columnSpan(12)]
                     : []),
                 (new Card)->components([
@@ -276,7 +391,16 @@ final class SalesAgentResource extends GestionaleResource
             $values[$key] = $value ?? '0';
         }
 
+        if (Gestionale::feature('sales_agent_commissions')) {
+            static::checkRules(Repeater::rowsFromRequest('commission_rules', (array) $_POST));
+        }
+
+        if (Gestionale::feature('sales_agent_targets')) {
+            static::checkTargets(Repeater::rowsFromRequest('targets', (array) $_POST));
+        }
+
         $values = static::takePriceLists($values, (int) ($oldValues['id'] ?? 0));
+        $values = static::takeNetwork($values, (int) ($oldValues['id'] ?? 0));
 
         // Il nuovo stato vale subito per la visibilità.
         SalesAgents::forget();
@@ -312,6 +436,55 @@ final class SalesAgentResource extends GestionaleResource
         return $values;
     }
 
+    /**
+     * Rete: niente cerchi sopra di lui, una scelta nota per la modifica. Con
+     * la rete spenta i valori salvati restano.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    public static function takeNetwork(array $values, int $agentId = 0): array
+    {
+        if (!SalesAgentNetwork::enabled()) {
+            unset($values['parent_id'], $values['network_edit']);
+
+            return $values;
+        }
+
+        if (array_key_exists('parent_id', $values)) {
+            $parent = max(0, (int) $values['parent_id']);
+            if (!SalesAgentNetwork::validParent(SalesAgentNetwork::parents(), $agentId, $parent)) {
+                throw UserError::make('sales_agent.invalid_parent');
+            }
+            $values['parent_id'] = $parent;
+        }
+
+        if (array_key_exists('network_edit', $values) && !in_array((string) $values['network_edit'], ['default', 'true', 'false'], true)) {
+            $values['network_edit'] = 'default';
+        }
+
+        return $values;
+    }
+
+    /** I commerciali che possono stare sopra quello aperto: non lui, non la sua rete sotto. @return array<int, string> */
+    public static function parentOptions(): array
+    {
+        $id = (int) (static::currentId() ?? 0);
+        $current = 0;
+        if ($id > 0) {
+            $current = (int) (SalesAgentNetwork::parents()[$id] ?? 0);
+        }
+        $out = [];
+
+        foreach (SalesAgents::options(true, $current) as $option => $label) {
+            if (SalesAgentNetwork::validParent(SalesAgentNetwork::parents(), $id, (int) $option)) {
+                $out[$option] = $label;
+            }
+        }
+
+        return $out;
+    }
+
     /** I listini da scegliere: tutti, anche quelli non attivi (si vedono come tali). */
     public static function priceListOptions(int $agentId = 0): array
     {
@@ -336,6 +509,93 @@ final class SalesAgentResource extends GestionaleResource
         }
 
         return array_values((array) $value);
+    }
+
+    /**
+     * Ogni regola ha un prodotto o una categoria (non tutti e due) e una %
+     * fra 0 e 100. Le righe vuote si saltano.
+     *
+     * @param list<array<string, mixed>> $rows
+     */
+    public static function checkRules(array $rows): void
+    {
+        foreach (array_values($rows) as $i => $row) {
+            $product = (int) ($row['product_id'] ?? 0);
+            $category = (int) ($row['category_id'] ?? 0);
+            $percent = Numbers::fromForm($row['percent'] ?? null);
+
+            if ($product <= 0 && $category <= 0 && $percent === null) {
+                continue;
+            }
+
+            if (($product > 0) === ($category > 0) || $percent === null || (float) $percent < 0 || (float) $percent > 100) {
+                throw UserError::make('sales_agent.invalid_rule', ['row' => (string) ($i + 1)]);
+            }
+        }
+    }
+
+    /**
+     * Le righe degli obiettivi: una riga vuota si salta, le altre vogliono
+     * anno, mese (per «Mese») e importo maggiore di 0.
+     *
+     * @param list<array<string, mixed>> $rows
+     */
+    public static function checkTargets(array $rows): void
+    {
+        foreach (array_values($rows) as $i => $row) {
+            if (static::emptyTarget($row)) {
+                continue;
+            }
+
+            $row['amount'] = Numbers::fromForm($row['amount'] ?? null) ?? '';
+            if (!Targets::valid($row)) {
+                throw UserError::make('sales_agent.invalid_target', ['row' => (string) ($i + 1)]);
+            }
+        }
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function emptyTarget(array $row): bool
+    {
+        return trim((string) ($row['year'] ?? '')) === '' && trim((string) ($row['amount'] ?? '')) === '';
+    }
+
+    public static function prepareRepeaterRows(
+        string $inputName,
+        array $rows,
+        string $action = 'store',
+        string $context = 'backend'
+    ): array {
+        if ($inputName === 'targets') {
+            $out = [];
+            foreach ($rows as $row) {
+                if (!is_array($row) || static::emptyTarget($row)) {
+                    continue;
+                }
+                $row = Targets::normalize($row);
+                $row['amount'] = Numbers::fromForm($row['amount'] ?? null) ?? '0';
+                $out[] = $row;
+            }
+
+            return $out;
+        }
+
+        if ($inputName !== 'commission_rules') {
+            return $rows;
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || ((int) ($row['product_id'] ?? 0) <= 0 && (int) ($row['category_id'] ?? 0) <= 0)) {
+                continue;
+            }
+            $row['product_id'] = (int) ($row['product_id'] ?? 0);
+            $row['category_id'] = $row['product_id'] > 0 ? 0 : (int) ($row['category_id'] ?? 0);
+            $row['percent'] = Numbers::fromForm($row['percent'] ?? null) ?? '0';
+            $out[] = $row;
+        }
+
+        return $out;
     }
 
     public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array

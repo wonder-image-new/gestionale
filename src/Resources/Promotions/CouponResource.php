@@ -42,6 +42,9 @@ use Wonder\Plugin\Gestionale\Support\Promotions\PromotionSheet;
 use Wonder\Plugin\Gestionale\Support\Promotions\ScopeForm;
 use Wonder\Plugin\Gestionale\Support\Sales\Channels;
 use Wonder\Sql\Transaction;
+use Wonder\App\Visibility\RowVisibility;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentCoupons;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 use Wonder\Plugin\Gestionale\Support\RequestMemo;
 
 /**
@@ -124,6 +127,7 @@ class CouponResource extends GestionaleResource
             'companies' => 'Aziende riservate',
             'status' => 'Stato',
             'note' => 'Note',
+            'agent_id' => 'Commerciale',
         ];
     }
 
@@ -169,7 +173,22 @@ class CouponResource extends GestionaleResource
                 ->selectSearch(static::companyOptions(), true)
                 ->label('Aziende riservate'),
             FormField::key('note')->textarea()->label('Note'),
+            ...(static::agentShown() ? [
+                FormField::key('agent_id')->select(['' => 'Nessuno'] + SalesAgents::options(false))->label('Commerciale'),
+            ] : []),
         ];
+    }
+
+    /** Il commerciale del coupon (#77): lo sceglie l'ufficio. */
+    public static function agentShown(): bool
+    {
+        return SalesAgentCoupons::enabled() && !SalesAgents::restricted(RowVisibility::currentUser());
+    }
+
+    /** Il commerciale vede i suoi coupon in sola lettura. */
+    public static function agentReadOnly(): bool
+    {
+        return SalesAgentCoupons::enabled() && SalesAgents::restricted(RowVisibility::currentUser());
     }
 
     public static function formLayoutSchema(): ?Form
@@ -225,6 +244,15 @@ class CouponResource extends GestionaleResource
                     static fn (string $channel) => static::getInput(Channels::column($channel))->columnSpan(12),
                     Channels::active()
                 ),
+            ])->columns(12)->columnSpan(12);
+        }
+
+        if (static::agentShown()) {
+            $side[] = (new Card)->components([
+                SectionTitle::make('Commerciale')
+                    ->tooltip('Un ordine che usa il codice va a questo commerciale; il cliente passa a lui solo se non ne ha già uno. Il commerciale vede il coupon in sola lettura.')
+                    ->columnSpan(12),
+                static::getInput('agent_id')->columnSpan(12),
             ])->columns(12)->columnSpan(12);
         }
 
@@ -286,7 +314,7 @@ class CouponResource extends GestionaleResource
 
                     return Badge::make(static::statusLabel($row, $now()))->variant($class)->inline()->render('bootstrap');
                 }),
-            TableColumn::key('actions')->button()->actions([
+            TableColumn::key('actions')->button()->actions(static::agentReadOnly() ? ['view'] : [
                 'view',
                 'edit',
                 // L'etichetta segue lo stato della riga; il core inverte la colonna.
@@ -299,7 +327,13 @@ class CouponResource extends GestionaleResource
     public static function tableLayoutSchema(): TableLayoutSchema
     {
         // Attiva, disattiva o elimina più coupon insieme.
-        return ListBulkActions::apply(parent::tableLayoutSchema(), static fn (): array => ListBulkActions::promotions());
+        if (static::agentReadOnly()) {
+            return parent::tableLayoutSchema();
+        }
+
+        $layout = ListBulkActions::apply(parent::tableLayoutSchema(), static fn (): array => ListBulkActions::promotions());
+
+        return SalesAgentCoupons::enabled() ? SalesAgents::filter($layout) : $layout;
     }
 
     public static function pageSchema(): PageSchema
@@ -315,7 +349,7 @@ class CouponResource extends GestionaleResource
                 'edit' => 'Modifica coupon',
             ])
             ->view('show', Gestionale::viewPath('pages/coupon-show.php'))
-            ->actions('view', static fn (array $item): array => [
+            ->actions('view', static fn (array $item): array => static::agentReadOnly() ? [] : [
                 ...static::codeActions($item),
                 [
                     'label' => 'Modifica',
@@ -622,7 +656,12 @@ class CouponResource extends GestionaleResource
 
     public static function permissionSchema(): PermissionSchema
     {
-        return PermissionSchema::for(static::class)->access(Gestionale::area('promozioni'));
+        $schema = PermissionSchema::for(static::class)->access(Gestionale::area('promozioni'));
+
+        // Codici dei commerciali (#77): elenco e scheda anche per loro.
+        return SalesAgentCoupons::enabled()
+            ? $schema->backend(['list', 'view'], static::viewers())
+            : $schema;
     }
 
     /** Nessuna API di Resource: nel modulo non c'è un chiamante. */
@@ -637,7 +676,13 @@ class CouponResource extends GestionaleResource
             ->section('promozioni', 'Promozioni', 'bi-percent', 360)
             ->title('Coupon')
             ->order(20)
-            ->access(Gestionale::area('promozioni'));
+            ->authority(SalesAgentCoupons::enabled() ? static::viewers() : Access::viewers(Gestionale::area('promozioni')));
+    }
+
+    /** @return list<string> chi vede i coupon, con i commerciali */
+    private static function viewers(): array
+    {
+        return array_values(array_unique([...Access::viewers(Gestionale::area('promozioni')), SalesAgents::ROLE]));
     }
 
     /** «20 %», «12,5 %», «10,00 €» o «Spedizione gratuita». */
@@ -773,7 +818,18 @@ class CouponResource extends GestionaleResource
         string $context = 'backend',
         ?array $oldValues = null
     ): array {
+        if (static::agentReadOnly()) {
+            throw UserError::make('sales_agent.coupon_read_only');
+        }
+
         $values = Channels::keepHidden($values, $oldValues);
+
+        if (static::agentShown()) {
+            $values['agent_id'] = max(0, (int) ($values['agent_id'] ?? 0));
+        } else {
+            unset($values['agent_id']);
+        }
+
         // Il codice non si cambia una volta creato (il campo, spento, non arriva nemmeno);
         // alla creazione si scrive in maiuscolo e senza spazi.
         $values['code'] = $action === 'update' && $oldValues !== null

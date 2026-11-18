@@ -2,6 +2,7 @@
 
 namespace Wonder\Plugin\Gestionale\Resources\Sales;
 
+use Wonder\Plugin\Gestionale\Support\SalesAgents\DiscountLimit;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 use Throwable;
 use Wonder\App\LegacyGlobals;
@@ -114,12 +115,12 @@ class OfficeOrderResource extends GestionaleResource
 
     public static function tableLayoutSchema(): TableLayoutSchema
     {
-        return SalesAgents::filter(TableLayoutSchema::for(static::class)
+        return DiscountLimit::filter(SalesAgents::filter(TableLayoutSchema::for(static::class)
             ->title('Bozze')
             ->results()
             ->buttonAdd(true, 'Nuovo ordine')
             ->filterSearch()
-            ->searchFields(['order_number', 'billing_name', 'billing_surname', 'billing_business_name', 'email']));
+            ->searchFields(['order_number', 'billing_name', 'billing_surname', 'billing_business_name', 'email'])));
     }
 
     /**
@@ -367,6 +368,10 @@ class OfficeOrderResource extends GestionaleResource
 
         if ($result['error'] !== '') {
             return ['ok' => false, 'message' => $result['error'], 'url' => $result['id'] > 0 ? static::editUrl($result['id']) : static::createUrl()];
+        }
+
+        if ($result['decided'] !== '') {
+            return ['ok' => true, 'message' => $result['decided'] === 'approved' ? 'Sconto approvato.' : 'Sconto rifiutato.', 'url' => static::editUrl($result['id'])];
         }
 
         if ($result['number'] !== '') {

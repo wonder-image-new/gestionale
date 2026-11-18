@@ -24,6 +24,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Support\Contacts\Brands;
 use Wonder\Plugin\Gestionale\Support\Contacts\CustomerMode;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentNetwork;
 use Wonder\Plugin\Gestionale\Support\Purchasing\ProductSuppliers;
 
 /**
@@ -153,6 +154,8 @@ class CompanyResource extends CustomerResource
      */
     public static function mutateRequestValues(array $values, string $action, string $context = 'backend', ?array $oldValues = null): array
     {
+        SalesAgentNetwork::guard($oldValues);
+
         if (!static::groupsShown()) {
             unset($values[static::$groupInput]);
         }
