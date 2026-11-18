@@ -131,7 +131,6 @@ return [
         'description' => 'Obiettivi mensili e annuali per commerciale, con l\'avanzamento e le statistiche del venduto.',
         'area' => 'Vendite',
         'requires' => ['sales_agents'],
-        'created' => false,
     ],
     'products' => [
         'name' => 'Prodotto',

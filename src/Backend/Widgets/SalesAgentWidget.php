@@ -13,11 +13,14 @@ use Wonder\Plugin\Gestionale\Resources\Contacts\CompanyResource;
 use Wonder\Plugin\Gestionale\Resources\Contacts\CustomerResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\OrderResource;
 use Wonder\Plugin\Gestionale\Resources\Sales\QuoteResource;
+use Wonder\Plugin\Gestionale\Resources\SalesAgents\SalesAgentPerformanceResource;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\Targets;
 
 /**
  * «I miei clienti» (#77): il riquadro del commerciale, al posto di quelli con
- * i totali di tutti. Conta solo ciò che lui vede.
+ * i totali di tutti. Conta solo ciò che vede. Con gli obiettivi accesi
+ * (`sales_agent_targets`) aggiunge «I miei obiettivi» del mese e dell'anno.
  */
 final class SalesAgentWidget implements HomeWidget
 {
@@ -48,7 +51,48 @@ final class SalesAgentWidget implements HomeWidget
             self::count(Company::class, "deleted = 'false'"),
             self::count(Order::class, "stage = 'quote' AND deleted = 'false'"),
             self::count(Order::class, "stage = 'order' AND status <> 'draft' AND deleted = 'false'")
+        ).self::targets();
+    }
+
+    /** Il riquadro degli obiettivi del commerciale collegato; vuoto se spenti. */
+    private static function targets(): string
+    {
+        $agent = SalesAgents::current();
+        if (!Targets::enabled() || $agent <= 0) {
+            return '';
+        }
+
+        try {
+            $year = (int) date('Y');
+            $month = (int) date('n');
+            $rows = Targets::rowsFor([$agent])[$agent] ?? [];
+            $monthActual = Targets::actuals([$agent], ...Targets::bounds($year, $month))[$agent];
+            $yearActual = Targets::actuals([$agent], ...Targets::bounds($year))[$agent];
+        } catch (Throwable $error) {
+            error_log('[gestionale] obiettivi non letti: '.$error->getMessage());
+
+            return '';
+        }
+
+        $metric = Targets::metric();
+
+        return self::targetsMarkup(
+            $metric,
+            Targets::pick($rows, $year, $month),
+            (float) $monthActual[$metric],
+            Targets::pick($rows, $year),
+            (float) $yearActual[$metric]
         );
+    }
+
+    public static function targetsMarkup(string $metric, ?float $monthTarget, float $monthActual, ?float $yearTarget, float $yearActual): string
+    {
+        $href = '/backend/'.SalesAgentPerformanceResource::path();
+        $card = LinkListCard::make('I miei obiettivi')->icon('bi-bullseye')->count(false)
+            ->link('Questo mese', $href, '', '', Targets::summary($metric, $monthTarget, $monthActual))
+            ->link('Quest\'anno', $href, '', '', Targets::summary($metric, $yearTarget, $yearActual));
+
+        return WidgetCard::column($card);
     }
 
     public static function markup(int $customers, int $companies, int $quotes, int $orders): string

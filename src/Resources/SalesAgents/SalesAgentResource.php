@@ -21,6 +21,7 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\Catalog\Category;
 use Wonder\Plugin\Gestionale\Models\SalesAgents\SalesAgent;
 use Wonder\Plugin\Gestionale\Models\SalesAgents\SalesAgentCommissionRule;
+use Wonder\Plugin\Gestionale\Models\SalesAgents\SalesAgentTarget;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
 use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Support\Catalog\CategoryTree;
@@ -31,6 +32,7 @@ use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentNetwork;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentPriceLists;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentUsers;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\Targets;
 
 /**
  * «Commerciali» (#77, funzionalità `sales_agents`): chi vende per il negozio e
@@ -133,7 +135,41 @@ final class SalesAgentResource extends GestionaleResource
                 ->label('Listino predefinito'),
             // Solo con la funzionalità: un form senza il campo svuoterebbe le regole.
             ...(Gestionale::feature('sales_agent_commissions') ? [static::rulesField()] : []),
+            ...(Gestionale::feature('sales_agent_targets') ? [static::targetsField()] : []),
         ];
+    }
+
+    /** Gli obiettivi per mese o per anno. */
+    private static function targetsField(): FormField
+    {
+        $months = ['' => 'Tutto l\'anno'];
+        foreach (['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'] as $i => $name) {
+            $months[(string) ($i + 1)] = $name;
+        }
+
+        return FormField::key('targets')
+            ->repeater([
+                RepeaterColumn::key('id')->hidden(),
+                RepeaterColumn::key('period')->select(SalesAgentTarget::PERIODS)->label('Periodo')->columnSpan(2),
+                RepeaterColumn::key('year')->number()->label('Anno')->columnSpan(2),
+                RepeaterColumn::key('month')->select($months)->label('Mese')->columnSpan(3),
+                RepeaterColumn::key('amount')->number()->decimal(2)->label('Obiettivo')->columnFill(),
+            ])
+            ->relation(
+                RepeaterRelation::make(SalesAgentTarget::$table, 'sales_agent_id')
+                    ->model(SalesAgentTarget::class)
+                    ->positionKey('position')
+                    ->softDelete(false)
+            )
+            ->nested()
+            ->repeaterSortable()
+            ->repeaterAddLabel('Aggiungi obiettivo')
+            ->repeaterDeleteTitle('Elimina obiettivo')
+            ->repeaterDeleteText('Confermi l\'eliminazione di questo obiettivo?')
+            ->repeaterDeleteCancelLabel('Annulla')
+            ->repeaterDeleteConfirmLabel('Elimina')
+            ->repeaterDeleteConfirmClass('btn btn-danger')
+            ->label('');
     }
 
     /** Le regole di provvigione per prodotto o categoria. */
@@ -223,6 +259,14 @@ final class SalesAgentResource extends GestionaleResource
                             ->tooltip('Una % diversa per un prodotto o per una categoria. Vale prima la regola del prodotto, poi quella della categoria (la prima in elenco se il prodotto ne ha più d\'una), poi la «Provvigione %» del commerciale.')
                             ->columnSpan(12),
                         static::getInput('commission_rules')->columnSpan(12),
+                    ])->columns(12)->columnSpan(12)]
+                    : []),
+                ...(Gestionale::feature('sales_agent_targets')
+                    ? [(new Card)->components([
+                        SectionTitle::make('Obiettivi')
+                            ->tooltip('Il valore da raggiungere in un mese o in tutto l\'anno, misurato come scelto nelle Impostazioni ('.Targets::metricLabel().'). Contano solo le vendite del commerciale, non quelle della sua rete. Per lo stesso periodo vale la prima riga in elenco.')
+                            ->columnSpan(12),
+                        static::getInput('targets')->columnSpan(12),
                     ])->columns(12)->columnSpan(12)]
                     : []),
                 (new Card)->components([
@@ -349,6 +393,10 @@ final class SalesAgentResource extends GestionaleResource
 
         if (Gestionale::feature('sales_agent_commissions')) {
             static::checkRules(Repeater::rowsFromRequest('commission_rules', (array) $_POST));
+        }
+
+        if (Gestionale::feature('sales_agent_targets')) {
+            static::checkTargets(Repeater::rowsFromRequest('targets', (array) $_POST));
         }
 
         $values = static::takePriceLists($values, (int) ($oldValues['id'] ?? 0));
@@ -486,12 +534,52 @@ final class SalesAgentResource extends GestionaleResource
         }
     }
 
+    /**
+     * Le righe degli obiettivi: una riga vuota si salta, le altre vogliono
+     * anno, mese (per «Mese») e importo maggiore di 0.
+     *
+     * @param list<array<string, mixed>> $rows
+     */
+    public static function checkTargets(array $rows): void
+    {
+        foreach (array_values($rows) as $i => $row) {
+            if (static::emptyTarget($row)) {
+                continue;
+            }
+
+            $row['amount'] = Numbers::fromForm($row['amount'] ?? null) ?? '';
+            if (!Targets::valid($row)) {
+                throw UserError::make('sales_agent.invalid_target', ['row' => (string) ($i + 1)]);
+            }
+        }
+    }
+
+    /** @param array<string, mixed> $row */
+    private static function emptyTarget(array $row): bool
+    {
+        return trim((string) ($row['year'] ?? '')) === '' && trim((string) ($row['amount'] ?? '')) === '';
+    }
+
     public static function prepareRepeaterRows(
         string $inputName,
         array $rows,
         string $action = 'store',
         string $context = 'backend'
     ): array {
+        if ($inputName === 'targets') {
+            $out = [];
+            foreach ($rows as $row) {
+                if (!is_array($row) || static::emptyTarget($row)) {
+                    continue;
+                }
+                $row = Targets::normalize($row);
+                $row['amount'] = Numbers::fromForm($row['amount'] ?? null) ?? '0';
+                $out[] = $row;
+            }
+
+            return $out;
+        }
+
         if ($inputName !== 'commission_rules') {
             return $rows;
         }
