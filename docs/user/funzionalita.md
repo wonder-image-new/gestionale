@@ -45,13 +45,13 @@ fare, diviso per area, con una riga di spiegazione sotto ogni voce.
 | Resi | Vendite | Richiesta, approvazione, motivo e ricarico a magazzino. | Ordini |
 | DDT | Vendite | Documento di trasporto per le consegne, con i lotti e il PDF. | Ordini |
 | [Commerciali](commerciali.md) | Vendite | Ogni commerciale ha il suo accesso e lavora solo sui suoi clienti: li crea e li modifica, fa preventivi e ordini da ufficio. L'ufficio assegna i clienti e filtra gli elenchi per commerciale. | Ordini, Vendita in ufficio |
-| Rete di commerciali | Vendite | Commerciali sotto altri commerciali, su quanti livelli servono: ognuno vede anche i clienti e i documenti della sua rete. | Commerciali |
-| Provvigioni | Vendite | Percentuale per commerciale con eccezioni per categoria e prodotto, maturata su pagato o evaso, stornata sui resi, con estratti conto ed export. | Commerciali |
-| Provvigioni di rete | Vendite | Chi sta sopra prende una provvigione sulle vendite della sua rete, per livello o per differenza. | Rete di commerciali, Provvigioni |
-| Sconto massimo dei commerciali | Vendite | Un ordine con uno sconto oltre il limite del commerciale resta da approvare finché l'ufficio non lo conferma. | Commerciali |
+| [Rete di commerciali](commerciali.md#rete-di-commerciali) | Vendite | Commerciali sotto altri commerciali, su quanti livelli servono: ognuno vede anche i clienti e i documenti della sua rete, e li modifica se gli dai il permesso. | Commerciali |
+| [Provvigioni](commerciali.md#provvigioni) | Vendite | Percentuale per commerciale con eccezioni per prodotto e categoria, maturata al pagamento o all'evasione, stornata sui resi, con la pagina Provvigioni, l'export CSV e «Segna come liquidate». | Commerciali |
+| [Provvigioni di rete](commerciali.md#provvigioni-di-rete) | Vendite | Chi sta sopra prende una percentuale sul venduto della sua rete, livello per livello, con una base che vale per tutti. | Rete di commerciali, Provvigioni |
+| [Sconto massimo dei commerciali](commerciali.md#sconto-massimo) | Vendite | Un ordine con uno sconto oltre il limite del commerciale resta da approvare finché l'ufficio non lo conferma. | Commerciali |
 | [Listini dei commerciali](commerciali.md#listini) | Vendite | L'ufficio sceglie quali listini ogni commerciale può dare ai suoi clienti e quale va da solo sui clienti nuovi. I prezzi non cambiano: il listino resta sul cliente. | Commerciali, Listini cliente |
-| Codici dei commerciali | Vendite | Ogni commerciale ha i suoi codici sconto: un ordine sul sito con il suo codice gli viene attribuito. | Commerciali, Coupon |
-| Obiettivi dei commerciali | Vendite | Obiettivi mensili e annuali per commerciale, con l'avanzamento e le statistiche del venduto. | Commerciali |
+| [Codici dei commerciali](commerciali.md#codici-dei-commerciali) | Vendite | L'ufficio dà i codici sconto ai commerciali: un ordine sul sito con il codice va al commerciale, e il cliente anche se non ne aveva uno. | Commerciali, Coupon |
+| [Obiettivi dei commerciali](commerciali.md#obiettivi) | Vendite | Obiettivi mensili e annuali per commerciale su fatturato, ordini o clienti nuovi, con il riquadro nella home e la pagina Andamento commerciali. | Commerciali |
 | Prodotto | Catalogo | Prodotti singoli nel catalogo. Spento, in Catalogo → Prodotti restano multiprodotti e abbonamenti. | — |
 | Abbonamenti | Catalogo | Piani, rinnovi e cambio piano: il tipo Abbonamento in Catalogo → Prodotti. | — |
 | Multiprodotto | Catalogo | Prodotti composti da altri prodotti: vendendoli si scaricano i componenti. | Prodotto |

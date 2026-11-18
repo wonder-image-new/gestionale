@@ -13,6 +13,32 @@ versionamento semantico.
   fra i suoi listini attivi in scheda, API e importazione; il listino già sul
   cliente resta. Nuova tabella `gst_sales_agent_price_lists` e colonna
   `default_price_list_id` su `gst_sales_agents`: serve `php forge update`.
+- Commerciali: rete di commerciali (`sales_agent_network`, #77). `parent_id`
+  dice chi sta sopra; chi sta sopra vede clienti e documenti di tutta la rete
+  sotto e li modifica se `network_edit` (o l'impostazione
+  `agent_network_edit`) lo permette.
+- Commerciali: sconto massimo (`sales_agent_discount_limits`, #77). Conta solo
+  lo sconto a mano; oltre il massimo il preventivo non si invia e l'ordine non
+  si conferma finché l'ufficio non preme «Approva sconto». Nuove colonne
+  `approval_status`, `approval_discount`, `approved_by`, `approved_at` su
+  `gst_orders`.
+- Commerciali: codici dei commerciali (`sales_agent_coupons`, #77). Colonna
+  `agent_id` su `gst_coupons`: l'ordine sul sito con il codice va al
+  commerciale, il cliente solo se non ne aveva; il commerciale vede i suoi
+  coupon in sola lettura.
+- Commerciali: provvigioni e provvigioni di rete (`sales_agent_commissions`,
+  `sales_agent_network_commissions`, #77). % per commerciale con eccezioni
+  per prodotto e categoria, maturata al pagamento o all'evasione, stornata su
+  resi e annullamenti; chi sta sopra prende la % del suo livello. Pagina
+  «Provvigioni» con filtri, CSV e «Segna come liquidate». Nuove tabelle
+  `gst_sales_agent_commissions` e `gst_sales_agent_commission_rules`.
+- Commerciali: obiettivi (`sales_agent_targets`, #77). Obiettivi mensili e
+  annuali su fatturato, ordini o clienti nuovi, riquadro «I miei obiettivi»
+  nella home e pagina «Andamento commerciali». Nuova tabella
+  `gst_sales_agent_targets`.
+- Impostazioni: riquadro «Commerciali» con le scelte di rete, provvigioni e
+  obiettivi (nuove colonne su `gst_settings`). Per tutte le voci sopra serve
+  `php forge update`.
 
 ## 1.0.0 — 2026-11-17
 

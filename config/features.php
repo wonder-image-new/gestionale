@@ -98,7 +98,7 @@ return [
     ],
     'sales_agent_commissions' => [
         'name' => 'Provvigioni',
-        'description' => 'Percentuale per commerciale con eccezioni per categoria e prodotto, maturata su pagato o evaso, stornata sui resi, con estratti conto ed export.',
+        'description' => 'Percentuale per commerciale con eccezioni per prodotto e categoria, maturata al pagamento o all\'evasione, stornata sui resi, con la pagina Provvigioni, l\'export CSV e «Segna come liquidate».',
         'area' => 'Vendite',
         'requires' => ['sales_agents'],
     ],
@@ -122,13 +122,13 @@ return [
     ],
     'sales_agent_coupons' => [
         'name' => 'Codici dei commerciali',
-        'description' => 'Ogni commerciale ha i suoi codici sconto: un ordine sul sito con il suo codice gli viene attribuito.',
+        'description' => 'L\'ufficio dà i codici sconto ai commerciali: un ordine sul sito con il codice va al commerciale, e il cliente anche se non ne aveva uno.',
         'area' => 'Vendite',
         'requires' => ['sales_agents', 'coupons'],
     ],
     'sales_agent_targets' => [
         'name' => 'Obiettivi dei commerciali',
-        'description' => 'Obiettivi mensili e annuali per commerciale, con l\'avanzamento e le statistiche del venduto.',
+        'description' => 'Obiettivi mensili e annuali per commerciale su fatturato, ordini o clienti nuovi, con il riquadro nella home e la pagina Andamento commerciali.',
         'area' => 'Vendite',
         'requires' => ['sales_agents'],
     ],
