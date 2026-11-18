@@ -17,9 +17,11 @@ use Wonder\Plugin\Gestionale\Models\Contacts\Company;
 use Wonder\Plugin\Gestionale\Models\Contacts\Contact;
 use Wonder\Plugin\Gestionale\Models\SalesAgents\SalesAgent;
 use Wonder\Plugin\Gestionale\Resources\GestionaleResource;
+use Wonder\Plugin\Gestionale\Resources\Pricing\PriceListResource;
 use Wonder\Plugin\Gestionale\Support\Errors\UserError;
 use Wonder\Plugin\Gestionale\Support\Numbers;
 use Wonder\Plugin\Gestionale\Support\Sales\OfficeOrderEditor;
+use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentPriceLists;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgentUsers;
 use Wonder\Plugin\Gestionale\Support\SalesAgents\SalesAgents;
 
@@ -77,11 +79,16 @@ final class SalesAgentResource extends GestionaleResource
             'active' => 'Stato',
             'note' => 'Note',
             'customers' => 'Clienti',
+            'price_lists' => 'Listini',
+            'default_price_list_id' => 'Listino predefinito',
         ];
     }
 
     /** I campi dell'utente nuovo: non sono colonne del commerciale. */
     private const USER_FIELDS = ['user_name', 'user_surname', 'user_email'];
+
+    /** Elenco e predefinito chiesti dal form, scritti dopo il salvataggio; null = non toccare. */
+    private static ?array $priceLists = null;
 
     public static function formSchema(): array
     {
@@ -104,6 +111,10 @@ final class SalesAgentResource extends GestionaleResource
                 ->value('true')
                 ->label('Stato'),
             FormField::key('note')->textarea()->label('Note'),
+            FormField::key('price_lists')->checkbox()->options(static::priceListOptions())->value([])->label(''),
+            FormField::key('default_price_list_id')
+                ->select(['' => 'Nessuno'] + static::priceListOptions())
+                ->label('Listino predefinito'),
         ];
     }
 
@@ -134,6 +145,15 @@ final class SalesAgentResource extends GestionaleResource
                     static::getInput('active')->columnSpan(static::currentId() === null ? 12 : 6),
                     static::getInput('contact_id')->columnSpan(12),
                 ])->columns(12)->columnSpan(12),
+                ...(SalesAgentPriceLists::enabled()
+                    ? [(new Card)->components([
+                        SectionTitle::make('Listini')
+                            ->tooltip('I listini che il commerciale può dare ai suoi clienti; nessuno: solo prezzi di catalogo. Il predefinito va da solo sui clienti nuovi che crea. I listini già sui clienti restano anche se li togli da qui.')
+                            ->columnSpan(12),
+                        static::getInput('price_lists')->columnSpan(12),
+                        static::getInput('default_price_list_id')->columnSpan(6),
+                    ])->columns(12)->columnSpan(12)]
+                    : []),
                 (new Card)->components([
                     SectionTitle::make($conditions === [] ? 'Note' : 'Condizioni')->columnSpan(12),
                     ...$conditions,
@@ -256,9 +276,97 @@ final class SalesAgentResource extends GestionaleResource
             $values[$key] = $value ?? '0';
         }
 
+        $values = static::takePriceLists($values, (int) ($oldValues['id'] ?? 0));
+
         // Il nuovo stato vale subito per la visibilità.
         SalesAgents::forget();
 
         return $values;
+    }
+
+    /**
+     * Elenco e predefinito non sono colonne: si tengono da parte e si
+     * scrivono dopo. Solo se il form aveva la card (funzionalità accesa).
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    public static function takePriceLists(array $values, int $agentId = 0): array
+    {
+        static::$priceLists = null;
+
+        if (SalesAgentPriceLists::enabled() && array_key_exists('default_price_list_id', $_POST)) {
+            $known = array_keys(static::priceListOptions($agentId));
+            $ids = array_values(array_intersect(SalesAgentPriceLists::ids(static::listValue($_POST['price_lists'] ?? ($values['price_lists'] ?? []))), $known));
+            $default = (int) ($_POST['default_price_list_id'] ?? 0);
+
+            if ($default > 0 && !in_array($default, $ids, true)) {
+                throw UserError::make('sales_agent.default_not_in_list');
+            }
+
+            static::$priceLists = ['ids' => $ids, 'default' => $default];
+        }
+
+        unset($values['price_lists'], $values['default_price_list_id']);
+
+        return $values;
+    }
+
+    /** I listini da scegliere: tutti, anche quelli non attivi (si vedono come tali). */
+    public static function priceListOptions(int $agentId = 0): array
+    {
+        $agentId = $agentId > 0 ? $agentId : (int) (static::currentId() ?? 0);
+        $options = PriceListResource::options(0, true);
+
+        // Un listino eliminato ma ancora nell'elenco non si perde in silenzio.
+        foreach ($agentId > 0 ? SalesAgentPriceLists::of($agentId) : [] as $id) {
+            $options[$id] ??= 'Listino #'.$id;
+        }
+
+        return $options;
+    }
+
+    /** @return list<mixed> */
+    private static function listValue(mixed $value): array
+    {
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+
+            return is_array($decoded) ? array_values($decoded) : ($value === '' ? [] : [$value]);
+        }
+
+        return array_values((array) $value);
+    }
+
+    public static function mutateFormValues(array $values, string $mode, string $context = 'backend'): array
+    {
+        $id = (int) ($values['id'] ?? static::currentId() ?? 0);
+
+        if ($id > 0) {
+            $values['price_lists'] = array_map('strval', SalesAgentPriceLists::of($id));
+            $default = (int) ($values['default_price_list_id'] ?? 0);
+            $values['default_price_list_id'] = $default > 0 ? (string) $default : '';
+        }
+
+        return parent::mutateFormValues($values, $mode, $context);
+    }
+
+    public static function afterStore(object $result, array $values = []): void
+    {
+        static::savePriceLists((int) ($result->insert_id ?? 0));
+    }
+
+    public static function afterUpdate(int|string $id, object $result, array $values = []): void
+    {
+        static::savePriceLists((int) $id);
+    }
+
+    private static function savePriceLists(int $agentId): void
+    {
+        if ($agentId > 0 && static::$priceLists !== null) {
+            SalesAgentPriceLists::assign($agentId, static::$priceLists['ids'], static::$priceLists['default']);
+        }
+
+        static::$priceLists = null;
     }
 }

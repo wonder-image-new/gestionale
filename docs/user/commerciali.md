@@ -63,6 +63,29 @@ vede. Un brand nuovo lo crea con il **+** della scheda o dell'ordine, non con
 o un brand che esiste già fra quelli di altri, il gestionale lo ferma senza
 dire di chi è: chiede all'ufficio.
 
+## Listini
+
+> **Da attivare.** Funzionalità **Listini dei commerciali**, che richiede
+> **Commerciali** e **Listini cliente**. Spenta, il commerciale sceglie fra
+> tutti i listini come l'ufficio.
+
+Nella scheda del commerciale, riquadro **Listini**:
+
+* spunta i **listini** che può dare ai suoi clienti. Lo stesso listino può
+  stare su più commerciali. Senza spunte il commerciale non dà listini: i suoi
+  clienti pagano i prezzi di catalogo;
+* scegli il **listino predefinito** fra quelli spuntati: va da solo sui
+  clienti nuovi che crea il commerciale, dalla scheda o da un'importazione. *Nessuno* li lascia a prezzi di catalogo.
+
+Il listino resta sul cliente: i prezzi si calcolano come sempre (vedi
+[Listini cliente](promozioni-listini-cliente.md)). Nella scheda del cliente il
+commerciale trova solo i suoi listini attivi. Se il cliente ha già un listino
+messo dall'ufficio, lo vede e può toglierlo, ma poi non può rimetterlo: per
+quello chiede all'ufficio. L'ufficio continua a scegliere fra tutti i
+listini.
+
+Togliere un listino dall'elenco non cambia i clienti che ce l'hanno già.
+
 ## Il commerciale sui documenti
 
 Un preventivo o un ordine nuovo prende il commerciale del cliente: quello
@@ -94,6 +117,5 @@ puoi riassegnarli con calma filtrando gli elenchi per il suo nome.
 
 Si potranno accendere più avanti, una per una: **Rete di commerciali**
 (commerciali sotto altri commerciali), **Provvigioni** e **Provvigioni di
-rete**, **Sconto massimo dei commerciali**, **Listini dei commerciali**,
-**Codici dei commerciali** e **Obiettivi dei commerciali**. Vedi
+rete**, **Sconto massimo dei commerciali**, **Codici dei commerciali** e **Obiettivi dei commerciali**. Vedi
 [Funzionalità incluse e da attivare](funzionalita.md).

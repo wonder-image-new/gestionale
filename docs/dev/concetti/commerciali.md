@@ -120,6 +120,33 @@ c'è solo per l'ufficio (`agentShown()`). Quando salva un commerciale,
 `agentValue()` toglie `agent_id` dalla richiesta e, in creazione, mette il suo:
 il commerciale non assegna né sposta clienti.
 
+## Listini dei commerciali
+
+Funzionalità `sales_agent_price_lists` (richiede `sales_agents` e
+`customer_price_lists`). L'elenco sta in `gst_sales_agent_price_lists`
+(`Models\SalesAgents\SalesAgentPriceList`, `sales_agent_id` e
+`price_list_id`), il predefinito in `gst_sales_agents.default_price_list_id`.
+Tutto passa da `Support\SalesAgents\SalesAgentPriceLists`:
+
+- `allowed()`: `null` per l'ufficio o a funzionalità spenta, altrimenti
+  l'elenco del commerciale corrente (anche vuoto: solo catalogo).
+- `choices($options, $allowed, $keep)` e `accepts($allowed, $id, $previous)`:
+  il listino già sul cliente resta fra le scelte e si accetta, gli altri fuori
+  elenco no (`sales_agent.price_list_not_allowed`). Il catalogo (0) si accetta
+  sempre.
+- `forNew()`: il predefinito, solo se è ancora nell'elenco.
+- `assign($agentId, $ids, $default)`: riscrive elenco e predefinito.
+
+`SalesAgentResource` mostra il riquadro «Listini» solo con la funzionalità
+accesa e scrive l'elenco in `afterStore`/`afterUpdate` solo se il riquadro è
+arrivato nel POST; un predefinito fuori elenco dà
+`sales_agent.default_not_in_list`. `CustomerResource::priceListChoices()`
+filtra le scelte (solo listini attivi per il commerciale) e
+`newPriceList()` mette il predefinito in creazione: nel form, nelle chiamate
+API senza `price_list_id` e nell'importazione
+(`GestionaleContactsImport::priceListChoices()`/`newPriceList()`). Il prezzo
+non cambia: vale sempre il listino del cliente.
+
 ## Elenchi, home e MCP
 
 - `SalesAgents::filter($layout)` aggiunge il filtro «Commerciale» (`agent_id`,

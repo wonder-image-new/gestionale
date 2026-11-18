@@ -103,6 +103,10 @@ riga.
 Nella scheda del cliente, riquadro **Listino**. Un cliente ha un solo
 listino; lo stesso listino può valere per tanti clienti.
 
+Con la funzionalità *Listini dei commerciali* un commerciale sceglie solo fra
+i listini che l'ufficio gli ha dato, e i suoi clienti nuovi prendono il suo
+listino predefinito. Vedi [Commerciali](commerciali.md#listini).
+
 ## Quale listino vale
 
 Per ogni prodotto il gestionale guarda, in quest'ordine:
