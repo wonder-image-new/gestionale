@@ -448,7 +448,7 @@ Fuori dal primo rilascio. Il backlog è nelle GitHub Issue (`future` nel gestion
   - Banco con integrazione fiscale e scontrino digitale (D43, D46) → [gestionale#117](https://github.com/wonder-image/gestionale/issues/117)
   - Abbonamenti con prodotti fisici (D44) → [gestionale#118](https://github.com/wonder-image/gestionale/issues/118)
   - Importazione del catalogo e delle giacenze (D55) → [gestionale#84](https://github.com/wonder-image/gestionale/issues/84)
-  - Importazione di clienti e listini, listini per categoria (D33, D55) → [gestionale#119](https://github.com/wonder-image/gestionale/issues/119)
+  - Importazione di clienti e listini, listini per categoria (D33, D55) → [gestionale#119](https://github.com/wonder-image/gestionale/issues/119), **chiusa** il 2026-11-18 (gestionale#201, customer-account#25, #162)
 - Ecommerce
   - Portale B2B con più utenti, referenti e gruppi (D31) → [ecommerce#23](https://github.com/wonder-image/ecommerce/issues/23)
   - Carrelli abbandonati (D47) → [ecommerce#51](https://github.com/wonder-image/ecommerce/issues/51)
